@@ -13,11 +13,11 @@ from render_html import _inject_classdef, _inject_container_styles
 # ── supported diagram types ───────────────────────────────────────────────────
 
 def test_flowchart_party_injects_classdef():
-    block = 'flowchart TD\n    ALEX["Alex"]\n    ALICE["Alice"]'
-    sem = {"nodes": {"SAM": "sem-party", "ALICE": "sem-party"}}
+    block = 'flowchart TD\n    ACME["Acme Corp"]\n    BETA["Beta LLC"]'
+    sem = {"nodes": {"ACME": "sem-party", "BETA": "sem-party"}}
     result = _inject_classdef(block, sem)
     assert "classDef semParty fill:#C9D6E3" in result
-    assert "class ALICE,SAM semParty" in result  # sorted alphabetically
+    assert "class ACME,BETA semParty" in result  # sorted alphabetically
 
 
 def test_flowchart_risk_high_modifier_produces_high_variant():
@@ -117,8 +117,8 @@ def test_only_risk_high_no_primary_skipped():
 
 def test_original_block_preserved_as_prefix():
     """Injected classDef/class lines must be appended, not replace, existing content."""
-    block = 'flowchart TD\n    ALEX["Alex"]'
-    sem = {"nodes": {"SAM": "sem-party"}}
+    block = 'flowchart TD\n    ACME["Acme Corp"]'
+    sem = {"nodes": {"ACME": "sem-party"}}
     result = _inject_classdef(block, sem)
     assert result.startswith(block)
 
@@ -171,3 +171,6 @@ def test_containers_coexist_with_classdef():
     out = _inject_container_styles(_inject_classdef(block, sem), sem)
     assert "class A semParty" in out
     assert "style Era1 fill:#F7F7F5" in out
+
+
+

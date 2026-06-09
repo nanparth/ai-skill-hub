@@ -56,7 +56,7 @@ Confused? Check out the animated guides below.
 
 ### 00 - Start Here: Pick The Right Install Type
 
-![Start here: pick the right install type](./walkthroughs/00_opener.gif)
+![Start here: pick the right install type](./.docs/walkthroughs/00_opener.gif)
 
 Use this first if you are not sure which install method applies to you. It gives the big picture before you copy, upload, or install anything.
 
@@ -66,19 +66,19 @@ Official docs:
 
 ### 01 - Terminal AI Tools: Copy To A Local Skills Folder
 
-![Terminal AI tools: copy to a local skills folder](./walkthroughs/01_cli_agent.gif)
+![Terminal AI tools: copy to a local skills folder](./.docs/walkthroughs/01_cli_agent.gif)
 
 Use this if you run an AI assistant from a terminal, such as Claude Code, Codex, or GitHub Copilot CLI. In this method, you copy the skill folder into a hidden skills folder on your computer.
 
 Official docs:
 
-- [Claude Code Agent Skills](https://docs.claude.com/en/docs/claude-code/skills)
+- [Claude Code Agent Skills](https://docs.claude.com/en/.docs/claude-code/skills)
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
 - [GitHub Copilot agent skills](https://docs.github.com/copilot/concepts/agents/about-agent-skills)
 
 ### 02 - Claude In The Browser: Upload A ZIP
 
-![Claude in the browser: upload a ZIP](./walkthroughs/02_claude_web.gif)
+![Claude in the browser: upload a ZIP](./.docs/walkthroughs/02_claude_web.gif)
 
 Use this if you use Claude in your web browser and want to add a skill to your personal Claude account. You zip one skill folder, upload it in Claude settings, and turn it on.
 
@@ -88,7 +88,7 @@ Official docs:
 
 ### 03 - VS Code / GitHub Copilot: Add Skills To A Project
 
-![VS Code or GitHub Copilot: add skills to a project](./walkthroughs/03_vscode.gif)
+![VS Code or GitHub Copilot: add skills to a project](./.docs/walkthroughs/03_vscode.gif)
 
 Use this if the skill should travel with a project folder. This is useful when you want the same skill available to everyone working on that project.
 
@@ -99,7 +99,7 @@ Official docs:
 
 ### 04 - Installer-Based Setup
 
-![Installer-based setup](./walkthroughs/04_installer.gif)
+![Installer-based setup](./.docs/walkthroughs/04_installer.gif)
 
 Use this if your AI tool has a built-in installer or command that places skills for you. For Codex, current docs point to local skill folders, plugins for sharing, and `$skill-installer` for curated or repository-based installs.
 
@@ -110,7 +110,7 @@ Official docs:
 
 ### 05 - Team Or Organization Setup
 
-![Team or organization setup](./walkthroughs/05_org_enterprise.gif)
+![Team or organization setup](./.docs/walkthroughs/05_org_enterprise.gif)
 
 Use this only if you manage skills for a team, company, school, or shared workspace. This usually means uploading a ZIP or using an admin setting so other people can enable the skill later.
 
