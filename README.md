@@ -24,13 +24,26 @@ I am releasing them because they are useful to me and I personally deem them to 
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`legal-diagram`](./legal-diagram/)         | Generates Mermaid diagrams for legal documents, matters, timelines, corporate structures, compliance obligations, funds flows, and related legal workflows. |
 | [`biz-interview`](./biz-interview/)         | Creates and analyzes customer discovery interview scripts, transcript notes, coding matrices, hypothesis verdicts, and qualitative reports.                 |
-| [`tech-blueprinting`](./tech-blueprinting/) | Guides an assistant through technical specs, PRDs, RFCs, implementation plans, READMEs, and reader testing.                                                 |
+| [`tech-blueprinting`](./tech-blueprinting/) | An interactive session for more rigorous drafting of technical specs, PRDs, RFCs, implementation plans, READMEs, and reader testing.                        |
 | [`tech-implement`](./tech-implement/)       | Runs a TDD-oriented implementation or bug-fix pipeline with worktree safety, reviews, and verification gates.                                               |
 | [`tech-refactor`](./tech-refactor/)         | Audits structural code problems and produces execution-ready refactor roadmaps with migration and test plans.                                               |
 
 ---
 
-### How to install - for those who don't get GitHub
+## Install your AI tool first
+
+If you do not have an AI coding or agent tool installed yet, start with the official setup docs for the tool you want to use.
+
+- [Claude Code first-day setup](https://support.claude.com/en/articles/14552382-your-first-day-in-claude-code)
+- [Claude Cowork setup](https://support.claude.com/en/articles/13345190-get-started-with-cowork)
+- [OpenAI Codex CLI](https://developers.openai.com/codex/cli)
+- [Cursor CLI installation](https://docs.cursor.com/en/cli/installation)
+- [Cursor CLI overview](https://docs.cursor.com/en/cli/overview)
+- [GitHub Copilot CLI install](https://docs.github.com/copilot/how-tos/set-up/installing-github-copilot-in-the-cli)
+
+---
+
+## How to install - for those who aren't familiar with GitHub
 
 All install methods start the same way:
 
@@ -41,7 +54,7 @@ All install methods start the same way:
 
 Confused? Check out the animated guides below.
 
-#### 00 - Start Here: Pick The Right Install Type
+### 00 - Start Here: Pick The Right Install Type
 
 ![Start here: pick the right install type](./walkthroughs/00_opener.gif)
 
@@ -51,7 +64,7 @@ Official docs:
 
 - [Agent Skills specification](https://agentskills.io/specification)
 
-#### 01 - Terminal AI Tools: Copy To A Local Skills Folder
+### 01 - Terminal AI Tools: Copy To A Local Skills Folder
 
 ![Terminal AI tools: copy to a local skills folder](./walkthroughs/01_cli_agent.gif)
 
@@ -63,7 +76,7 @@ Official docs:
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
 - [GitHub Copilot agent skills](https://docs.github.com/copilot/concepts/agents/about-agent-skills)
 
-#### 02 - Claude In The Browser: Upload A ZIP
+### 02 - Claude In The Browser: Upload A ZIP
 
 ![Claude in the browser: upload a ZIP](./walkthroughs/02_claude_web.gif)
 
@@ -73,7 +86,7 @@ Official docs:
 
 - [Use Skills in Claude](https://support.claude.com/en/articles/12512180-using-skills-in-claude)
 
-#### 03 - VS Code / GitHub Copilot: Add Skills To A Project
+### 03 - VS Code / GitHub Copilot: Add Skills To A Project
 
 ![VS Code or GitHub Copilot: add skills to a project](./walkthroughs/03_vscode.gif)
 
@@ -84,7 +97,7 @@ Official docs:
 - [About agent skills for GitHub Copilot](https://docs.github.com/copilot/concepts/agents/about-agent-skills)
 - [Adding agent skills for GitHub Copilot](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/create-skills)
 
-#### 04 - Installer-Based Setup
+### 04 - Installer-Based Setup
 
 ![Installer-based setup](./walkthroughs/04_installer.gif)
 
@@ -95,7 +108,7 @@ Official docs:
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
 - [Adding agent skills for GitHub Copilot](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/create-skills)
 
-#### 05 - Team Or Organization Setup
+### 05 - Team Or Organization Setup
 
 ![Team or organization setup](./walkthroughs/05_org_enterprise.gif)
 
@@ -177,19 +190,6 @@ Then commit and push the project change if you want others to receive it.
 ### Team or organization account
 
 Zip the skill folder, upload it in your team's skill settings, set visibility for the team, and tell teammates how to enable it.
-
----
-
-## Install your AI tool first
-
-If you do not have an AI coding or agent tool installed yet, start with the official setup docs for the tool you want to use.
-
-- [Claude Code first-day setup](https://support.claude.com/en/articles/14552382-your-first-day-in-claude-code)
-- [Claude Cowork setup](https://support.claude.com/en/articles/13345190-get-started-with-cowork)
-- [OpenAI Codex CLI](https://developers.openai.com/codex/cli)
-- [Cursor CLI installation](https://docs.cursor.com/en/cli/installation)
-- [Cursor CLI overview](https://docs.cursor.com/en/cli/overview)
-- [GitHub Copilot CLI install](https://docs.github.com/copilot/how-tos/set-up/installing-github-copilot-in-the-cli)
 
 ---
 
