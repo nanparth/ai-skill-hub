@@ -1,0 +1,178 @@
+# -----------------------------------------------------------------------------
+# Local operating-system files
+# -----------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100/
+.Trashes/
+Icon?
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# -----------------------------------------------------------------------------
+# Editors and local workspace settings
+# Keep shared project settings out of this file unless they are intentionally
+# committed. Add them back with a leading ! rule if needed.
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------------
+# Secrets and local-only configuration
+# Never commit real credentials. Commit .env.example instead.
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.csr
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.kdbx
+secrets.*
+credentials.*
+
+# -----------------------------------------------------------------------------
+# Python environments, caches, reports, and packaging output
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.ipynb_checkpoints/
+build/
+dist/
+site/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# -----------------------------------------------------------------------------
+# JavaScript / package-manager caches if future skills add web tooling
+# -----------------------------------------------------------------------------
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+parcel-cache/
+coverage/
+
+# -----------------------------------------------------------------------------
+# Generated files, local scratch output, logs, and archives
+# Keep source docs, skill files, scripts, templates, references, and walkthrough
+# GIFs tracked. These rules target local output and packaged exports.
+# -----------------------------------------------------------------------------
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+.cache/
+.tmp/
+tmp/
+temp/
+out/
+output/
+outputs/
+exports/
+generated/
+reports/
+artifacts/
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# -----------------------------------------------------------------------------
+# Local documents and test inputs that may contain private data
+# Use synthetic fixtures when examples are needed in the repo.
+# -----------------------------------------------------------------------------
+private/
+local/
+scratch/
+samples/private/
+samples/local/
+fixtures/private/
+fixtures/local/
+*.local.*
+*.private.*
+*.secret.*
+
+# -----------------------------------------------------------------------------
+# Generated diagram/export formats from legal-diagram workflows
+# Track reusable templates, but ignore ad hoc rendered outputs.
+# -----------------------------------------------------------------------------
+*.rendered.html
+*.diagram.html
+*.diagram.svg
+*.diagram.png
+*.mermaid.output
+*.mmd.output
+legal-diagram-output*/
+mermaid-output*/
+
+# -----------------------------------------------------------------------------
+# Local AI assistant state
+# Do not ignore standard project skill folders such as .agents/skills,
+# .claude/skills, or .github/skills; those may be intentional source files.
+# -----------------------------------------------------------------------------
+.codex/
+.aider*
+.copilot-chat/
+.claude/settings.local.json
+CLAUDE.local.md
+AGENTS.local.md
+.mcp.local.json
+mcp.local.json
+
+# -----------------------------------------------------------------------------
+# Miscellaneous tool caches
+# -----------------------------------------------------------------------------
+.pyrightcache/
+.dmypy.json
+.dmypy.json.lock
+.cache-loader/
+.eslintcache
