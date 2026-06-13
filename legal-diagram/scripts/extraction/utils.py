@@ -1,6 +1,37 @@
+"""extraction.utils: shared utilities for the extraction package.
+
+After W2.4 this module is organised as follows:
+
+  Helpers (four named groups re-exported from extraction.helpers):
+    money     -- money_text, amount_number, extract_payment_parties, has_payment_verb
+    dates     -- deadline_text, has_deadline_signal
+    subjects  -- extract_subject, clean_party, clean_entity, extract_entity_like_names
+    scoring   -- score_confidence, score_boost, anti_penalty
+
+  Residual (owned here, not extracted):
+    Sentence splitting      -- ABBREVIATION_GUARDS_EN, _GUARD_PLACEHOLDER,
+                               _guard_split, sentences_with_offsets
+    Normalisation / clean   -- clean_text, clean_value, clean_role, norm, clamp
+    Snippets                -- snippet, uniq
+    Anchor helpers          -- neighbor_ids, page_from_anchor, slide_from_anchor,
+                               sheet_from_anchor
+    Heading / signal utils  -- heading_prior_signals, anti_signals,
+                               condition_corrob_signals
+    Table-row helpers       -- classify_headers, row_values, render_row_text
+    Document / party util   -- document_name, control_documents, delivery_method,
+                               rank_from_text, infer_role_from_text,
+                               extract_procurement_target, extract_notice_parties,
+                               extract_object_entity, has_payment_verb (re-export),
+                               is_rep_warranty
+
+Every name that harvesters and tests currently import from this module remains
+importable here unchanged (zero import-site edits outside the four harvesters
+whose inline duplications are redirected by W2.4).
+"""
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any, Iterable, Optional
 
 from .lexicon import (
@@ -8,6 +39,7 @@ from .lexicon import (
     DATE_RE,
     HEADING_PRIORS,
     HEADER_SYNONYMS,
+    HEADER_SYNONYMS_FR,
     KNOWN_ROLE_WORDS,
     MONEY_RE,
     SENTENCE_SPLIT,
@@ -15,15 +47,83 @@ from .lexicon import (
 )
 from .schema import SourceRef
 
+# ---------------------------------------------------------------------------
+# W2.4: helpers package re-exports (single source of truth for these groups)
+# ---------------------------------------------------------------------------
+from .helpers.scoring import anti_penalty, score_boost, score_confidence  # noqa: F401
+from .helpers.dates import deadline_text, has_deadline_signal  # noqa: F401
+from .helpers.subjects import (  # noqa: F401
+    clean_entity,
+    clean_party,
+    extract_entity_like_names,
+    extract_subject,
+)
+from .helpers.money import (  # noqa: F401
+    amount_number,
+    extract_payment_parties,
+    has_payment_verb,
+    money_text,
+)
+
+# ---------------------------------------------------------------------------
+# W2.4 / W2.1: ABBREVIATION_GUARDS_EN -- single source of truth in lexicon/en.py
+#
+# Previously utils.py held a verbatim copy; the canonical tuple now lives in
+# en.py (_ABBREVIATION_GUARDS_EN) and is re-exported here under the same public
+# name so that all existing imports keep working unchanged.
+# ---------------------------------------------------------------------------
+from .lexicon.en import _ABBREVIATION_GUARDS_EN as ABBREVIATION_GUARDS_EN  # noqa: F401
+
+# Private sentinel inserted between a guarded abbreviation and the original
+# whitespace that follows it.  The sentinel breaks SENTENCE_SPLIT's lookbehind
+# (which requires punctuation immediately before the whitespace) so no split
+# fires.  Sentinel collision is resolved by skipping guards entirely for
+# NUL-bearing input, never by stripping characters, because offsets must stay
+# exact: text[start:end] == sent must hold for all inputs.
+_GUARD_PLACEHOLDER = "\x00"
+
+
+def _guard_split(text: str, guards: tuple[str, ...] = ABBREVIATION_GUARDS_EN) -> list[str]:
+    """Split text on SENTENCE_SPLIT while honouring abbreviation guards.
+
+    The capture group in each guard pattern preserves the original whitespace
+    verbatim; the sentinel is removed on restore so sentences_with_offsets can
+    locate every part in the original text via str.find without offset drift.
+    NUL-bearing input bypasses guards entirely so no character mutation occurs;
+    such text splits on raw SENTENCE_SPLIT boundaries and offsets remain exact.
+    Each guard matches only at a word boundary (not preceded by a word
+    character), so guards never fire on the tail of a longer word (W4.0a).
+    Guards sourced from the EN lexicon bundle (ABBREVIATION_GUARDS_EN) via W2.4.
+    """
+    # Early exit for NUL-bearing input: sentinel collision cannot be resolved
+    # without mutating characters, which would break offset correctness.
+    if _GUARD_PLACEHOLDER in text:
+        return SENTENCE_SPLIT.split(text)
+    protected = text
+    for abbrev in guards:
+        protected = re.sub(
+            r"(?<!\w)" + re.escape(abbrev) + r"(\s+)",
+            abbrev + _GUARD_PLACEHOLDER + r"\1",
+            protected,
+        )
+    parts = SENTENCE_SPLIT.split(protected)
+    return [part.replace(_GUARD_PLACEHOLDER, "") for part in parts]
+
 
 def classify_headers(headers: list[str]) -> dict[int, str]:
+    # Table rows are synthetic blocks with no block.lang, so headers are
+    # classified bilingually: the EN table is consulted first (preserving EN
+    # behaviour exactly), then the FR twin table on no match (W3.3).
     mapped: dict[int, str] = {}
     for idx, header in enumerate(headers):
         h = norm(header)
-        for canonical, synonyms in HEADER_SYNONYMS.items():
-            if any(h == syn or syn in h for syn in synonyms):
-                mapped[idx] = canonical
+        for synonym_table in (HEADER_SYNONYMS, HEADER_SYNONYMS_FR):
+            if idx in mapped:
                 break
+            for canonical, synonyms in synonym_table.items():
+                if any(h == syn or syn in h for syn in synonyms):
+                    mapped[idx] = canonical
+                    break
     return mapped
 
 
@@ -45,9 +145,11 @@ def render_row_text(headers: list[str], cells: list[str]) -> str:
     return " | ".join(parts)
 
 
-def sentences_with_offsets(text: str) -> Iterable[tuple[str, int, int]]:
+def sentences_with_offsets(text: str, guards: tuple[str, ...] = ABBREVIATION_GUARDS_EN) -> Iterable[tuple[str, int, int]]:
+    # W3: the dispatcher passes the per-block bundle's abbreviation_guards;
+    # the EN default keeps every existing call site byte-identical.
     start = 0
-    for part in SENTENCE_SPLIT.split(text):
+    for part in _guard_split(text, guards):
         stripped = part.strip()
         if not stripped:
             start += len(part)
@@ -78,52 +180,9 @@ def condition_corrob_signals(text: str) -> list[str]:
     return signals
 
 
-def score_boost(signals: list[str]) -> float:
-    weights = {
-        "table_row_binding": 0.18,
-        "known_party_subject": 0.08,
-        "legal_action_object": 0.07,
-        "deadline_signal": 0.06,
-        "heading_prior": 0.05,
-        "alias_match": 0.08,
-        "defined_term": 0.10,
-        "sender_signal": 0.04,
-        "recipient_signal": 0.05,
-        "payment_signal": 0.06,
-        "delivery_method_signal": 0.04,
-    }
-    return sum(weights.get(signal, 0.0) for signal in set(signals))
-
-
-def anti_penalty(anti: list[str]) -> float:
-    return min(0.28, 0.07 * len(set(anti)))
-
-
-def score_confidence(base: float, signals: list[str], anti: list[str]) -> float:
-    return base + score_boost(signals) - anti_penalty(anti)
-
-
-def extract_subject(text: str, trigger_start: Optional[int] = None) -> str:
-    prefix = text[:trigger_start].strip() if trigger_start is not None else text.strip()
-    if not prefix or trigger_start is None:
-        m = re.match(r"^(?:The\s+)?(?P<party>[A-Z][A-Za-z0-9 .&'/-]{1,80}?|no\s+party)\s+(?:shall|must|will|agrees?|undertakes|covenants|is\s+required|is\s+obligated|is\s+responsible|may|notify|deliver|provide|pay|reimburse|fund|transfer|remit|wire)\b", text, re.I)
-        return clean_party(m.group("party")) if m else ""
-    prefix = re.sub(r"^(?:if|provided that|subject to|upon|following|after)\s+", "", prefix, flags=re.I).strip(" ,;:")
-    if not prefix:
-        return ""
-    return clean_party(re.split(r",|;|\band\b", prefix)[-1].strip())
-
-
 def extract_procurement_target(text: str) -> str:
     m = re.search(r"(?:shall\s+cause|cause)\s+(?P<target>[^.;,]{1,80}?)\s+to\s+", text, re.I)
-    return clean_party(m.group("target")) if m else ""
-
-
-def extract_payment_parties(text: str) -> tuple[str, str]:
-    m = re.search(r"(?P<payer>[A-Z][A-Za-z .&']+?)\s+(?:shall\s+|must\s+|will\s+|agrees?\s+to\s+)?(?:pay|reimburse|fund|deposit|remit|wire|transfer)\s+.+?\s+to\s+(?P<payee>[A-Z][A-Za-z .&']+?)(?:\s+(?:on|within|at|by|upon|following|after)\b|[.;,]|$)", text)
-    if not m:
-        return extract_subject(text), ""
-    return clean_party(m.group("payer")), clean_party(m.group("payee"))
+    return clean_entity(m.group("target")) if m else ""
 
 
 def extract_notice_parties(text: str) -> tuple[str, str]:
@@ -143,54 +202,51 @@ def extract_object_entity(text: str) -> str:
     return ""
 
 
-def extract_entity_like_names(text: str) -> list[str]:
-    names = []
-    suffix_rx = re.compile(r"\b([A-Z][A-Za-z0-9&.,' -]+?\s+(?:Inc\.?|LLC|Ltd\.?|Corp(?:oration)?\.?|Company|LP|LLP|PLC|GmbH))\b")
-    for m in suffix_rx.finditer(text):
-        name = clean_entity(m.group(1))
-        if name and name not in names:
-            names.append(name)
-    return names
-
-
-def has_deadline_signal(text: str) -> bool:
-    return bool(DATE_RE.search(text) or re.search(r"\b(by|within|before|after|following|prior\s+to|no\s+later\s+than|not\s+later\s+than|on\s+or\s+before|promptly\s+after|as\s+soon\s+as\s+practicable|cure\s+period|written\s+notice)\b", text, re.I))
-
-
-def deadline_text(text: str) -> Optional[str]:
-    m = DATE_RE.search(text)
-    if m:
-        return m.group(0)
-    m = re.search(r"\b(?:within\s+\d+\s+(?:business\s+)?days?\s+(?:after|of)|prior\s+to\s+Closing|following\s+Closing|promptly\s+after[^.;,]{0,60}|as\s+soon\s+as\s+practicable\s+after[^.;,]{0,60}|\d+\s+(?:business\s+)?days?[']?\s+(?:prior\s+)?written\s+notice)\b", text, re.I)
-    return m.group(0) if m else None
-
-
-def has_payment_verb(text: str) -> bool:
-    return bool(re.search(r"\b(pay|reimburse|fund|deposit|remit|wire|transfer|payable|due\s+and\s+payable)\b", text, re.I))
-
-
-def money_text(text: str) -> Optional[str]:
-    m = MONEY_RE.search(text)
-    if m:
-        return m.group(0)
-    m = re.search(r"\b(purchase\s+price|fee|expense|escrow\s+amount|holdback)\b", text, re.I)
-    return m.group(0) if m else None
-
-
-def amount_number(text: Optional[str]) -> Optional[float]:
-    if not text:
-        return None
-    m = re.search(r"[\d,]+(?:\.\d{2})?", text)
-    return float(m.group(0).replace(",", "")) if m else None
-
-
 def is_rep_warranty(text: str) -> bool:
     return bool(re.search(r"\b(represents\s+and\s+warrants|representations?|warranties|true\s+and\s+correct|to\s+the\s+knowledge\s+of|except\s+as\s+disclosed|set\s+forth\s+on\s+Schedule)\b", text, re.I))
 
 
 def document_name(text: str) -> str:
-    m = re.search(r"\b(officer's\s+certificate|secretary's\s+certificate|bring-down\s+certificate|compliance\s+certificate|executed\s+counterpart|instrument|notice|schedule|exhibit|books\s+and\s+records)\b", text, re.I)
-    return m.group(0) if m else snippet(text, 90)
+    # W6 T4 Item D: priority order for document name extraction.
+    # 1. Numbered schedule/exhibit/annex references: "Schedule No. 4", "Exhibit A",
+    #    "Annexe 2", "Schedule 1.1", "Annex III" -- these are the most specific.
+    m = re.search(
+        r"\b(Schedule(?:\s+No\.?)?\s+\d+(?:\.\d+)*"
+        r"|Exhibit\s+[A-Z0-9]+(?:\.\d+)?"
+        r"|Annexe?\s+(?:No\.?\s*)?\d+(?:\.\d+)*"
+        r"|Exhibit\s+No\.?\s*\d+"
+        r"|Schedule\s+[A-Z](?:\.\d+)?)\b",
+        text,
+        re.I,
+    )
+    if m:
+        return m.group(0)
+    # 2. Named certificate or formal document types (unambiguous multi-word forms).
+    m2 = re.search(
+        r"\b(officer's\s+certificate|secretary's\s+certificate"
+        r"|bring-down\s+certificate|compliance\s+certificate"
+        r"|executed\s+counterpart|books\s+and\s+records)\b",
+        text,
+        re.I,
+    )
+    if m2:
+        return m2.group(0)
+    # 3. Title-Case multi-word phrase ending before a verb or punctuation --
+    #    heuristic for named agreements/instruments cited in a delivery clause.
+    #    Captures things like "Platform Licence Agreement" but not bare "notice"
+    #    or lone generic words.
+    m3 = re.search(
+        r"\b((?:[A-Z][A-Za-z]+\s+){1,6}(?:Agreement|Contract|Deed|Instrument"
+        r"|Certificate|Notice|Licence|License|Policy|Plan|Report|Statement"
+        r"|Order|Approval|Consent|Letter|Opinion|Release|Amendment|Waiver))\b",
+        text,
+    )
+    if m3 and len(m3.group(1).split()) >= 2:
+        return m3.group(1).strip()
+    # 4. No specific document name found: return a short snippet so the caller
+    #    can still emit a candidate, but NOT bare single-word nouns like "notice"
+    #    which are too generic.  Return empty string to signal no document name.
+    return ""
 
 
 def control_documents(text: str) -> list[str]:
@@ -247,15 +303,19 @@ def clean_text(value: str) -> str:
     return SPACE_RE.sub(" ", str(value or "")).strip(" .,;:")
 
 
-def clean_party(value: str) -> str:
-    value = clean_text(value)
-    value = re.sub(r"^(?:the\s+)", "", value, flags=re.I)
-    value = re.sub(r"\b(?:shall|must|will|may|agrees?|undertakes|covenants)$", "", value, flags=re.I).strip()
-    return value.strip(" .,;:")[:120]
+# W3.4: Œ/œ carry no NFD decomposition (no Unicode decomposition mapping), so the
+# ligature maps to its ASCII digraph explicitly before NFD strips combining marks.
+_LIGATURE_MAP = str.maketrans({"Œ": "OE", "œ": "oe"})
 
 
-def clean_entity(value: str) -> str:
-    return clean_party(value).strip("()[]{}\"'")[:140]
+def strip_diacritics(value: str) -> str:
+    """Transliterate accents to ASCII: NFD-decompose, then drop combining marks.
+
+    `é` → `e`, `ç` → `c`, `Œ` → `OE`; ASCII input passes through unchanged.
+    Used to make Mermaid node IDs ASCII-safe; display labels keep accents verbatim.
+    """
+    decomposed = unicodedata.normalize("NFD", str(value or "").translate(_LIGATURE_MAP))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
 def clean_role(value: str) -> str:

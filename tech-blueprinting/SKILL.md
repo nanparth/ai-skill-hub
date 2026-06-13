@@ -1,6 +1,7 @@
 ---
 name: tech-blueprinting
-description: 'Use when the primary deliverable is a technical specification document produced through iterative drafting with user review gates, not for generating code. Trigger on: "write a spec", "spec this out", "draft a PRD", "write an RFC", "blueprint this", "decision doc", "dev plan", "write a README", "document this skill".'
+version: '1.0.0'
+description: 'Use when the primary deliverable is a technical specification document produced through iterative drafting with user review gates, not for generating code. Trigger on: "write a spec", "spec this out", "draft a PRD", "write an RFC", "blueprint this", "decision doc", "dev plan", "write a README", "document this skill". Not for code implementation or direct document conversion.'
 argument-hint: '[spec|prd|rfc|design-doc|decision-doc|dev-plan|architecture|readme] [--title name]'
 ---
 

@@ -3,6 +3,144 @@ from pathlib import Path
 
 MERMAID_VERSION = "10.9.1"
 
+# ── UI chrome strings (W3.5 scaffolding; W5 owns the full UX pass) ────────────
+
+# Per-language chrome strings injected into assets/html_template.html.  The
+# table swaps labels only; matter text (diagram, figure description, digest
+# rows) stays verbatim source language.  disclaimer_html is raw inner HTML
+# (rendered with | safe), so the EN banner keeps its existing markup verbatim.
+UI_STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "tab_overview": "Overview",
+        "tab_how_to_read": "How to Read",
+        "tab_observations": "Observations",
+        "tab_limitations": "⚠ Limitations",
+        "tab_source_docs": "Source Docs",
+        "panel_overview": "Overview",
+        "panel_how_to_read": "How to Read",
+        "panel_observations": "Key Observations",
+        "panel_limitations": "Limitations",
+        "panel_source_docs": "Source Docs",
+        "ctrl_zoom_in": "Zoom in",
+        "ctrl_zoom_out": "Zoom out",
+        "ctrl_reset": "Reset",
+        "ctrl_contrast": "High contrast",
+        "ctrl_flip": "Flip",
+        "ctrl_fullscreen": "Full screen",
+        "ctrl_exit_fullscreen": "Exit fullscreen (Esc)",
+        "ctrl_exit_fullscreen_label": "✕ Exit",
+        "export_svg": "Sharp vector (SVG), best for printing and slides",
+        "export_png": "Picture (PNG), best for email and Word",
+        "export_html": "This whole page (HTML)",
+        "export_title": "Save / Export",
+        "edit_source": "✎ Edit Source",
+        "edit_title": "Edit",
+        # W5.3 editor strings
+        "editor_summary": "Advanced: edit the diagram's drawing instructions",
+        "editor_warning": "Changes here affect the picture only, not your documents.",
+        "rerender": "Re-draw",
+        "cancel": "Cancel",
+        "disclaimer_html": (
+            '🤖 GenAI Output &nbsp;·&nbsp; Visual aid only. '
+            '<span class="not-advice">Not legal advice.</span> '
+            'Verify all facts against source documents. &nbsp;🤖'
+        ),
+        # W5.1 UX strings
+        "source_only_message": (
+            "This file was exported without its drawing engine, "
+            "so the diagram is shown as text instructions."
+        ),
+        "source_only_disclosure_label": "Show diagram source",
+        "source_only_action": (
+            "Ask the person who sent you this file for the rendered version."
+        ),
+        "alert_no_renderer": (
+            "The drawing engine did not load for this file. "
+            "Try reopening the file or refreshing the page."
+        ),
+        "alert_rerender_error": (
+            "The diagram could not be redrawn. "
+            "Your change may have a typo; press Cancel to restore the original."
+        ),
+        "alert_svg_not_ready": (
+            "The diagram is not ready yet. Please wait a moment and try again."
+        ),
+        "alert_png_failed": (
+            "The image could not be saved. Try downloading the SVG version instead."
+        ),
+        # W5.2 guidance strings
+        "hint_chip": "Drag to move · scroll or pinch to zoom · buttons below right",
+        "hint_pulse": "More detail in these tabs",
+        "hint_got_it": "Got it",
+        "fab_save_label": "Save",
+        "fab_edit_label": "Edit",
+    },
+    "fr": {
+        "tab_overview": "Aperçu",
+        "tab_how_to_read": "Comment lire",
+        "tab_observations": "Observations",
+        "tab_limitations": "⚠ Limites",
+        "tab_source_docs": "Documents sources",
+        "panel_overview": "Aperçu",
+        "panel_how_to_read": "Comment lire",
+        "panel_observations": "Observations clés",
+        "panel_limitations": "Limites",
+        "panel_source_docs": "Documents sources",
+        "ctrl_zoom_in": "Zoom avant",
+        "ctrl_zoom_out": "Zoom arrière",
+        "ctrl_reset": "Réinitialiser",
+        "ctrl_contrast": "Contraste élevé",
+        "ctrl_flip": "Basculer",
+        "ctrl_fullscreen": "Plein écran",
+        "ctrl_exit_fullscreen": "Quitter le plein écran (Échap)",
+        "ctrl_exit_fullscreen_label": "✕ Quitter",
+        "export_svg": "Vecteur haute qualité (SVG), idéal pour l'impression et les présentations",
+        "export_png": "Image (PNG), idéale pour les courriels et Word",
+        "export_html": "Cette page complète (HTML)",
+        "export_title": "Enregistrer / Exporter",
+        "edit_source": "✎ Modifier la source",
+        "edit_title": "Modifier",
+        # W5.3 editor strings
+        "editor_summary": "Avancé : modifier les instructions de dessin du diagramme",
+        "editor_warning": "Ces modifications affectent uniquement l'image, pas vos documents.",
+        "rerender": "Redessiner",
+        "cancel": "Annuler",
+        "disclaimer_html": (
+            "Sortie d'IA générative · Aide visuelle seulement. Ne constitue pas "
+            "un avis juridique. Vérifiez tous les faits contre les documents sources."
+        ),
+        # W5.1 UX strings
+        "source_only_message": (
+            "Ce fichier a été exporté sans son moteur de rendu, "
+            "alors le diagramme est affiché sous forme d'instructions textuelles."
+        ),
+        "source_only_disclosure_label": "Afficher la source du diagramme",
+        "source_only_action": (
+            "Demandez à la personne qui vous a envoyé ce fichier la version avec le diagramme rendu."
+        ),
+        "alert_no_renderer": (
+            "Le moteur de dessin de ce fichier n'a pas pu se charger. "
+            "Essayez de rouvrir le fichier ou de rafraîchir la page."
+        ),
+        "alert_rerender_error": (
+            "Le diagramme n'a pas pu être redessiné. "
+            "Votre modification contient peut-être une erreur; appuyez sur Annuler pour restaurer l'original."
+        ),
+        "alert_svg_not_ready": (
+            "Le diagramme n'est pas encore prêt. Veuillez patienter un moment et réessayer."
+        ),
+        "alert_png_failed": (
+            "L'image n'a pas pu être enregistrée. Essayez plutôt de télécharger la version SVG."
+        ),
+        # W5.2 guidance strings
+        "hint_chip": "Glisser pour déplacer · défiler ou pincer pour zoomer · boutons en bas à droite",
+        "hint_pulse": "Plus de détails dans ces onglets",
+        "hint_got_it": "Compris",
+        "fab_save_label": "Enregistrer",
+        "fab_edit_label": "Modifier",
+    },
+}
+
 # ── classDef injection ────────────────────────────────────────────────────────
 
 # "graph" is a Mermaid alias for flowchart and also supports classDef.
@@ -33,8 +171,8 @@ def _sem_table() -> dict[str, tuple[str, str, str]]:
     return {
         sem: (
             name,
-            f"fill:{fill},stroke:{stroke},stroke-width:1.5px",
-            f"fill:{fill},stroke:{_RISK_HIGH_STROKE},stroke-width:{_RISK_HIGH_WIDTH}",
+            f"fill:{fill},stroke:{stroke},stroke-width:1.5px,color:#1a1a1a",
+            f"fill:{fill},stroke:{_RISK_HIGH_STROKE},stroke-width:{_RISK_HIGH_WIDTH},color:#1a1a1a",
         )
         for sem, name, fill, stroke in _BASE
     }
@@ -166,14 +304,6 @@ def _string_list(value) -> list[str]:
         return [str(item) for item in value]
     return [str(value)]
 
-def _path_uri_or_display(p: Path) -> str:
-    """Return a URI when the platform can express it, otherwise a safe display path."""
-    try:
-        return p.as_uri()
-    except ValueError:
-        return p.as_posix()
-
-
 def _source_link(source_path: str | None, page: int | None,
                  relative_links: bool, output_path: str) -> str | None:
     if not source_path:
@@ -184,9 +314,9 @@ def _source_link(source_path: str | None, page: int | None,
             rel = p.relative_to(Path(output_path).parent)
             uri = str(rel).replace("\\", "/")
         except ValueError:
-            uri = _path_uri_or_display(p)
+            uri = p.as_uri()
     else:
-        uri = _path_uri_or_display(p)
+        uri = p.as_uri()
     fragment = ""
     if p.suffix.lower() == ".pdf" and page:
         fragment = f"#page={page}"
@@ -197,7 +327,8 @@ def render(mermaid_block: str, figure_desc: dict, output_path: str,
            semantic_map: str = "{}", allow_cdn: bool = False,
            digest_table: list[dict] | None = None,
            source_path: str | None = None,
-           relative_links: bool = False) -> dict:
+           relative_links: bool = False,
+           ui_lang: str = "en") -> dict:
     from jinja2 import Environment, BaseLoader
     src = _template_path().read_text(encoding="utf-8")
     env = Environment(loader=BaseLoader(), autoescape=True)
@@ -220,7 +351,12 @@ def render(mermaid_block: str, figure_desc: dict, output_path: str,
     injected_block = _inject_classdef(mermaid_block, parsed_sem_map)
     injected_block = _inject_container_styles(injected_block, parsed_sem_map)
 
+    if ui_lang not in UI_STRINGS:
+        ui_lang = "en"
+
     html = env.from_string(src).render(
+        ui=UI_STRINGS[ui_lang],
+        ui_lang=ui_lang,
         matter_title=figure_desc.get("title", "Legal Diagram"),
         matter_context=figure_desc.get("matter_context", ""),
         mermaid_block=injected_block, figure_caption=figure_desc.get("caption", ""),
@@ -244,13 +380,16 @@ def main():
     p.add_argument("--output-path", required=True)
     p.add_argument("--semantic-map", default="{}")
     p.add_argument("--allow-cdn", action="store_true",
-                   help="Allow pinned Mermaid CDN fallback when a vendored Mermaid file under `assets/vendor/` is absent.")
+                   help="Allow pinned Mermaid CDN fallback when assets/vendor/mermaid.min.js is absent.")
     p.add_argument("--digest-table", default="[]",
                    help="JSON array of digest row dicts to render as verification table.")
     p.add_argument("--source-path", default="",
                    help="Absolute path to source document for source links in digest table.")
     p.add_argument("--relative-links", action="store_true",
                    help="Emit relative file:// links for source_path instead of absolute.")
+    p.add_argument("--ui-lang", choices=("en", "fr"), default="en",
+                   help="Chrome language for tabs, controls, export labels, and the "
+                        "disclaimer banner. Diagram and matter text stay verbatim.")
     args = p.parse_args()
     try:
         desc = json.loads(args.figure_desc)
@@ -266,7 +405,8 @@ def main():
                                 allow_cdn=args.allow_cdn,
                                 digest_table=digest_table or None,
                                 source_path=args.source_path or None,
-                                relative_links=args.relative_links)))
+                                relative_links=args.relative_links,
+                                ui_lang=args.ui_lang)))
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)})); sys.exit(1)
 

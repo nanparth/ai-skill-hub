@@ -1,5 +1,6 @@
 ---
 name: biz-interview
+version: '1.0.0'
 description: 'Use when designing, generating, processing, or analyzing market research interviews: customer discovery, stakeholder validation, supply-side interviews, or cross-interview coding. Trigger on: "coding matrix", "codebook", "hypothesis verdicts", "interview coding", "mock interview data", "customer discovery interview". Not for job interviews or survey design.'
 argument-hint: '[create|process|analyze|generate-mock|code] [--segment name]'
 ---

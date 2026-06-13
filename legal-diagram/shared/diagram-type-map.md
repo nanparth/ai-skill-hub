@@ -62,20 +62,20 @@ Wait for user's answer. This counts as the one allowed interruption. After user 
 
 ## Plain-language names (user-facing)
 
-In all text user reads, name diagrams with these plain words, never the Mermaid type. Technical name stays internal (scripts, workflows). Accept plain-word requests from user and map back to the type the same way.
+In all text user reads, name diagrams with these plain words, never the Mermaid type. Technical name stays internal (scripts, workflows). Accept plain-word requests from user and map back to the type the same way. FR prompts use the FR column both ways (accept and speak).
 
-|Mermaid type|Say to the user|
-|---|---|
-|`timeline`|timeline|
-|`gantt`|schedule (timeline with durations)|
-|`flowchart`|flowchart, or "decision tree" when it walks a yes/no test|
-|`state diagram`|status flow (how something moves through stages)|
-|`erDiagram`|org chart, or relationship map|
-|`requirementDiagram`|obligation checklist (compliance map)|
-|`sequenceDiagram`|who-does-what-when (back-and-forth diagram)|
-|`mindmap`|mind map|
-|`quadrantChart`|priority grid (a 2x2)|
-|`journey`|experience map|
+|Mermaid type|Say to the user|En français|
+|---|---|---|
+|`timeline`|timeline|chronologie|
+|`gantt`|schedule (timeline with durations)|échéancier|
+|`flowchart`|flowchart, or "decision tree" when it walks a yes/no test|schéma, ou « arbre de décision »|
+|`state diagram`|status flow (how something moves through stages)|flux de statuts|
+|`erDiagram`|org chart, or relationship map|organigramme|
+|`requirementDiagram`|obligation checklist (compliance map)|liste d'obligations|
+|`sequenceDiagram`|who-does-what-when (back-and-forth diagram)|qui-fait-quoi-quand|
+|`mindmap`|mind map|carte mentale|
+|`quadrantChart`|priority grid (a 2x2)|grille de priorités|
+|`journey`|experience map|carte d'expérience|
 
 Example delivery: "I drew a **timeline**. This matter would also work as an **org chart** or an **obligation checklist** — want either?" Not: "recommended_type: timeline, alternatives: erDiagram, requirementDiagram."
 

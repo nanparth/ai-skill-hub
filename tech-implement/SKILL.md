@@ -1,6 +1,7 @@
 ---
 name: tech-implement
-description: 'Use when committing to a full implementation cycle: worktree isolation, TDD, subagent dispatch, and two-stage review. Trigger on: "implement this plan", "build this feature", "fix this bug", "root cause this", "implement with TDD", "subagent-driven development". Not for ad-hoc edits, writing specs, or architectural overhauls.'
+version: '1.0.0'
+description: 'Use when committing to a full implementation cycle: isolated work, TDD, task execution, review, and verification. Trigger on: "implement this plan", "build this feature", "fix this bug", "root cause this", "implement with TDD", "subagent-driven development". Not for ad-hoc edits, writing specs, or architectural overhauls.'
 argument-hint: '[plan.md] [--mode implement|debug]'
 ---
 

@@ -2,18 +2,16 @@
 
 Power-user front-end. Read every signal in one pass, resolve input, hand enriched extraction to shared generation core. Hard cap of one interruption.
 
-## Step 0 — Read all signals at once
+## Step 0 — Read remaining signals
 
-Extract from user message: (a) input source (file path / pasted text / "use conversation"); (b) diagram type (exact Mermaid type / legal category / "recommend" / nothing); (c) output preferences (HTML flag / path override / matter_type override).
+The routing gate already resolved the input source and ran Pass 1 (`manifest_cache`). This lane is entered after GATE A. Read the rest from the user message: (a) diagram type (exact Mermaid type / legal category / "recommend" / nothing); (b) output preferences (path override / matter_type override). The HTML report is a separate gate (GATE B), decided after the diagram is drawn.
 
-## Step 1 — Input resolution
+## Step 1 — Enter Pass 2 with the router manifest
 
-- **File path** → load `shared/setup-check.md`, then enter `workflows/extract.md` with `skip_confirmation=true`.
-- **Pasted text** → `workflows/extract.md` with `skip_confirmation=true` (pipes to `extract_entities.py --stdin`).
-- **"Use conversation"** → synthesise `ExtractionResult` from context window; build coverage map by hand.
-- **No input** → ask exactly one question: "What are you mapping? Paste text, drop a file path, or describe the matter."
+- **`manifest_cache` present** (file or pasted text) → enter `workflows/extract.md` with `skip_confirmation=true` and `manifest_cache`, so extract.md skips Pass 1 and resumes at Pass 2.
+- **No `manifest_cache`** (matter description only) → synthesise `ExtractionResult` from the context window; build the coverage map by hand.
 
-**Interruption policy (hard cap 1).** Proceed at confidence ≥ 0.50. Halt only if (a) extraction fully empty (`is_empty()`) and no input text available, or (b) requested file does not exist.
+**Interruption policy (hard cap 1).** Proceed at confidence ≥ 0.50. Halt only if extraction is fully empty (`is_empty()`) with no input text available. Input resolution, the missing-file case, and the no-input prompt are handled by the routing gate before this lane loads.
 
 ## Step 2 — Type intent
 
@@ -23,4 +21,4 @@ Extract from user message: (a) input source (file path / pasted text / "use conv
 
 ## Step 3 — Generate
 
-Load `workflows/generation.md` with enriched extraction, intent (or fixed type), `mode=direct`, and output preferences. Selects, guards, generates, delivers (rationale + alternatives), writes note, and runs refine loop.
+Load `workflows/generation.md` with enriched extraction, intent (or fixed type), `mode=direct`, and output preferences. Selects, guards, generates, delivers (rationale + alternatives), and runs refine loop.

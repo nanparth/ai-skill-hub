@@ -1,8 +1,7 @@
 ---
 name: legal-diagram
-description: 'Generate Mermaid diagrams for legal purposes. Use when the user says "generate a legal diagram", "diagram this contract/matter/process", "map the parties", "create a timeline of events", "compliance obligation map", "visualise this deal", "create a flowchart for", "draw the corporate structure", "funds flow diagram", "privilege decision tree", "export as HTML diagram", or "legal mermaid diagram". Also use when the user supplies a legal document (.md/.docx/.pdf/.xlsx/.pptx) and asks for a visual, chart, map, or diagram.'
-effort: high
-context: full
+version: '1.2.0'
+description: 'Use when a user needs a legal or legal-adjacent Mermaid diagram from a document, pasted text, matter description, process, timeline, party map, obligation map, corporate structure, funds flow, or compliance workflow. Trigger on: "diagram this contract", "visualise this deal/matter", "map the parties", "create a timeline of events", "make an org chart", "obligation checklist", "export as HTML diagram". Not for general-purpose non-legal diagrams, pure graphic design, image generation, or legal advice.'
 argument-hint: '[file path | "pasted text" | matter description] [diagram type] [--guided] [--direct] [--html] [--tutorial]'
 ---
 
@@ -12,60 +11,88 @@ Standalone skill: turn legal material into a context-appropriate Mermaid diagram
 
 ## Routing gate
 
-Read user's message and pick a branch.
+Every real diagram request runs in this fixed order: first-run check, ingest, build-mode gate, generate, report gate. Non-diagram intents short-circuit at Step 0. Three human gates present as a structured choice when the host assistant supports one, otherwise a numbered list in plain text; never free-text prompts. Stop and wait for the reply at each. The gates are GATE 0 (tutorial offer), GATE A (build mode), GATE B (HTML report).
 
-1. **Tutorial** — signals: "tutorial", "show me how", "first time", "demo", "walk me through", or a first-run question. → Load `workflows/tutorial.md`.
-2. **Setup** — signals: "check setup", "install deps", "is setup ready". → Load `shared/setup-check.md`, run `check_setup.py`, report.
-3. **Direct** (power user, at most one interruption) — an explicit fast signal: a diagram type named (plain or technical), "just make it", "just generate", "quick", `--direct`, or `--fast`. → Load `workflows/direct.md`.
-4. **Guided** (default, interactive) — `--guided`, "step by step", "build it with me", or any real request with no fast signal (a file, pasted text, or a matter description). → Load `workflows/guided.md`.
+### Step 0 — Intent and first-run
 
-**Lane choice.** For a real diagram request with no explicit lane signal, ask one plain-language line before loading: "Want me to just make the diagram, or build it with you step by step?" — "just make it" → `workflows/direct.md`; "step by step" → `workflows/guided.md`; default to step by step. Skip this question when a lane signal is already present. Both lanes share `workflows/generation.md` for the actual build.
+Check explicit short-circuits first:
+
+1. **Tutorial** signals: "tutorial", "show me how", "first time", "demo", "walk me through", `--tutorial`. → Load `workflows/tutorial.md`. Stop here.
+2. **Setup** signals: "check setup", "install deps", "is setup ready". → Load `shared/setup-check.md`, run `check_setup.py`, report. Stop here.
+
+Otherwise this is a real diagram request (a file, pasted text, or a matter description). Detect first-run:
+
+Run `python scripts/first_run.py`. Parse `{state}`: `returning`, `first_run`, or `unknown`. Script absent, non-zero exit, or no JSON → treat as `unknown`.
+
+- `first_run` → **GATE 0** (structured choice): "First time here. Want a quick tutorial, or go straight to your diagram?" Options: **Start tutorial** (recommended, list first) / **Skip, straight to my diagram**. After the user answers, run `python scripts/first_run.py --mark` to consume the flag. Then: tutorial → load `workflows/tutorial.md`, stop; skip → continue to Step 1.
+- `returning` → no offer. Continue to Step 1.
+- `unknown` → no prompt (ephemeral or no persistent disk; do not nag every session). Continue to Step 1. Tutorial stays reachable by keyword.
+
+### Step 1 — Ingest before choosing a lane
+
+Detect input: file path, pasted text, or conversation/matter description. Load `shared/setup-check.md` (session-cached).
+
+**Multi-file scope** (2+ files, user did not state scope): structured choice before ingesting, **One combined diagram** / **One per document**. Store `diagram_scope`. Single file or stated scope → skip.
+
+Run Pass 1 only (deterministic manifest, no LLM): `workflows/extract.md` Steps 0-2. Store the result as `manifest_cache` and pass it to the chosen lane so Pass 1 never re-runs. Matter-description-only input (no docs) has no Pass 1 counts; proceed without them.
+
+### Step 2 — GATE A: build mode (after ingestion) ⛔ BLOCKING
+
+**Explicit flag answers the gate.** The user typing `--direct` or `--guided` is the recorded gate answer, carried in advance; skip the gate prompt, state the resolved mode in one line ("Build mode: direct (flag)"), and load the lane. This is an answer-carrier, not a bypass.
+
+**No flag → present the structured choice.** Lead with what Pass 1 found, in plain language: "Found [N parties, M events, ...]. How should I build it?" (omit counts for no-docs input). Options:
+
+- **Guided, step by step**
+- **Direct, just make it**
+
+Smart preselect from phrasing only, list the implied option first: "just make it", "quick", or a named diagram type → Direct first; "step by step", "build it with me", or no fast signal → Guided first. Phrasing is inference, never an answer; without an explicit flag the gate always shows and the user confirms or switches.
+
+On choice: load `workflows/direct.md` or `workflows/guided.md`, passing `manifest_cache`, `input_source`, and `diagram_scope`. Both lanes share `workflows/generation.md` for the build; GATE B (HTML report) fires there.
 
 **User-facing language (casual-friendly).** Never show Mermaid-internal type names to user. Use the plain-language names in `shared/diagram-type-map.md` § Plain-language names — "timeline", "org chart", "flowchart", "obligation checklist", and so on. Accept plain-word requests too ("make me an org chart") and map them through the same glossary. Legal vocabulary is fine; technical diagram vocabulary stays internal.
 
-## How it works (two-pass extraction)
-
-Pass 1 is deterministic Python (`extract_entities.py`): it normalizes any format into a structure-preserving model, runs a detector registry, and emits a **manifest** (entities + flagged hints + a coverage map + an enrichment-directive list). The script never guesses an entity; an unparseable signal becomes a hint, not a false entity.
-
-Pass 2 is the LLM (`workflows/extract.md`): it executes the manifest's directives against the flagged snippets only, populating `risk_level`, `decision_points`, hierarchies, and cross-links, and may populate a field only with textual support. Then `diagram_selector.py` picks the type and the diagram is generated.
+**Output language (EN/FR).** Gates, digest, elicitation, and rationale render in the user's prompt language (EN or FR; FR diagram names per the glossary's FR column). Extracted evidence and diagram labels stay verbatim source language, never translated. HTML export chrome follows via `render_html.py --ui-lang en|fr`.
 
 ## Scripts
 
-|Script|Role|
-|-----------------------------|-------------------------------------------------|
-|`scripts/check_setup.py`|Dependency check → `{ok, missing[], installed[]}`|
-|`scripts/extract_entities.py`|Orchestrator: normalize → detect → manifest JSON|
-|`scripts/diagram_selector.py`|Enriched extraction + intent → recommended type|
-|`scripts/render_html.py`|Mermaid + FigureDescription → standalone HTML|
+All script commands run from the skill root (the folder containing this `SKILL.md`). Resolve the skill root once, then invoke scripts as `python scripts/<name>.py`.
+
+| Script                        | Role                                                                                    |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `scripts/check_setup.py`      | Dependency check → `{ok, missing[], installed[], optional{}}`                           |
+| `scripts/first_run.py`        | First-run state → `{state}` (`returning`/`first_run`/`unknown`); `--mark` consumes flag |
+| `scripts/extract_entities.py` | Orchestrator: normalize → detect → manifest JSON                                        |
+| `scripts/diagram_selector.py` | Enriched extraction + intent → recommended type                                         |
+| `scripts/render_html.py`      | Mermaid + FigureDescription → standalone HTML                                           |
 
 `scripts/normalize/` (format adapters) and `scripts/extraction/` (candidate harvesters, resolver, and materializer) are libraries used by the orchestrator. Install deps once: `pip install -r requirements.txt -c constraints.txt` for release-verified versions, or omit `-c constraints.txt` for broad compatibility testing.
 
 ## Workflow loading map
 
-|Need|File|
-|------------------------------------------------------------|--------------------------|
-|First-run walkthrough + setup gate|`workflows/tutorial.md`|
-|Interactive default lane (digest/elicit → menu)|`workflows/guided.md`|
-|Power-user lane (read all signals, hard cap 1)|`workflows/direct.md`|
-|Shared generation core (select → guard → generate → deliver)|`workflows/generation.md`|
-|Two-pass extraction (called by both lanes)|`workflows/extract.md`|
-|No-docs intake sets + delivery pattern|`shared/elicitation.md`|
-|Standalone HTML figure export|`workflows/html-export.md`|
+| Intent/Need                                                  | File                       |
+| ------------------------------------------------------------ | -------------------------- |
+| First-run walkthrough + setup gate                           | `workflows/tutorial.md`    |
+| Interactive default lane (digest/elicit → menu)              | `workflows/guided.md`      |
+| Power-user lane (read all signals, hard cap 1)               | `workflows/direct.md`      |
+| Shared generation core (select → guard → generate → deliver) | `workflows/generation.md`  |
+| Two-pass extraction (called by both lanes)                   | `workflows/extract.md`     |
+| No-docs intake sets + delivery pattern                       | `shared/elicitation.md`    |
+| Standalone HTML figure export                                | `workflows/html-export.md` |
 
 ## Reference loading map
 
-|Need|File|
-|-----------------------------------------------------------------|-------------------------------------|
-|Dependency-check procedure|`shared/setup-check.md`|
-|Per-type guards, entity normalization, parser bugs|`shared/parser-guards.md`|
-|FigureDescription fields, captions, legends, risk rubric, caveats|`shared/figure-description-schema.md`|
-|30 legal categories → Mermaid type|`shared/diagram-type-map.md`|
-|Semantic node categories, palette, CSS class naming|`shared/node-styles.md`|
-|Field catalogue + detection tiers + signals|`references/extraction-schema.md`|
+| Intent/Need                                                       | File                                  |
+| ----------------------------------------------------------------- | ------------------------------------- |
+| Dependency-check procedure                                        | `shared/setup-check.md`               |
+| Per-type guards, entity normalization, parser bugs                | `shared/parser-guards.md`             |
+| FigureDescription fields, captions, legends, risk rubric, caveats | `shared/figure-description-schema.md` |
+| 30 legal categories → Mermaid type                                | `shared/diagram-type-map.md`          |
+| Semantic node categories, palette, CSS class naming               | `shared/node-styles.md`               |
+| Field catalogue + detection tiers + signals                       | `references/extraction-schema.md`     |
 
 ## Output
 
-Output is CLI display only: the fenced Mermaid block renders as an artifact in the Claude web app and as syntax-highlighted code in the CLI. No private workspace file is written. After the block, HTML export is always offered with default Y; the export escapes matter text, runs Mermaid in strict mode, uses vendored Mermaid when present, and loads the pinned CDN fallback only when explicitly enabled. Full output rules: `workflows/generation.md` § Step 5.
+Output is chat or terminal display only: the fenced Mermaid block renders in a Mermaid-capable chat or Markdown viewer, and as syntax-highlighted code in a terminal. No note is written to disk. After the block, GATE B offers an HTML report as a structured choice; the export escapes matter text, runs Mermaid in strict mode, uses vendored Mermaid when present, and loads the pinned CDN fallback only when explicitly enabled. Full output rules: `workflows/generation.md` § Step 5.
 
 ## Boundaries
 

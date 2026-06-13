@@ -18,6 +18,8 @@ Defines FigureDescription object and per-type content `html-export.md` injects i
 
 `caption` and `how_to_read` content per type (use plain-language name when speaking to user; these strings go in the HTML figure):
 
+Pass 2 authors `caption`, legend labels, and `caveats` in the matter language (the document's dominant language).
+
 |Type|Caption|How to read|
 |---|---|---|
 |`timeline`|"Timeline: <subject>, <date range>"|Read top to bottom; section headers group events by period.|

@@ -30,7 +30,7 @@ from .domain import (
 )
 
 from .schema import Candidate, EvidencePacket, PromotionDecision
-from .utils import amount_number, clean_text, deadline_text
+from .utils import amount_number, clean_text, deadline_text, strip_diacritics
 
 PREFIXES = {
     "obligations": "OBL",
@@ -111,7 +111,9 @@ def candidate_to_entity(cand: Candidate, counters: defaultdict[str, int]) -> tup
 
 
 def _slug(text: str) -> str:
-    return "".join(ch for ch in text.lower() if ch.isalnum()) or "x"
+    # W3.4: NFD transliteration runs before the existing ID normalisation so that
+    # accented FR headings yield ASCII-safe Mermaid node IDs; labels keep accents.
+    return "".join(ch for ch in strip_diacritics(text).lower() if ch.isalnum()) or "x"
 
 
 def build_hierarchy(

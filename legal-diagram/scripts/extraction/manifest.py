@@ -2,6 +2,7 @@ import re
 from typing import Any, Dict, List
 
 from extraction.domain import ENTITY_FIELDS, ExtractionResult
+from extraction.handoff import build_legacy_directives
 
 LLM_ONLY = {
     "decision_points": "Scan obligations, conditions, and process_steps for if/then logic.",
@@ -126,83 +127,7 @@ def build_manifest(
     hint_only = [f for f in hint_fields if f not in populated]
     absent = [k for k in ENTITY_FIELDS if k not in populated and k not in hint_only]
 
-    directives: List[Dict[str, Any]] = []
-
-    for field_name, attr, instr in NULL_FIELDS:
-        items = getattr(r, field_name)
-        targets = [getattr(it, "id", str(i)) for i, it in enumerate(items) if getattr(it, attr, None) is None]
-        if targets:
-            directives.append(
-                {
-                    "type": "null_field_classification",
-                    "field": f"{field_name}[].{attr}",
-                    "instruction": instr,
-                    "targets": targets,
-                    "hint_ids": [],
-                }
-            )
-
-    for i, h in enumerate(r.extraction_hints):
-        if h.confidence < HINT_GATE:
-            directives.append(
-                {
-                    "type": "hint_resolution",
-                    "field": h.suggested_field,
-                    "instruction": f"Resolve hint into {h.suggested_field} from snippet at {h.anchor}.",
-                    "targets": [],
-                    "hint_ids": [f"H{i}"],
-                }
-            )
-
-    for field_name, instr in LLM_ONLY.items():
-        directives.append({"type": "implicit_inference", "field": field_name, "instruction": instr, "targets": [], "hint_ids": []})
-
-    if r.obligations and (r.controls or "controls" in hint_only):
-        directives.append(
-            {
-                "type": "cross_linking",
-                "field": "controls[].obligation_id",
-                "instruction": "Link each control to the obligation it satisfies by proximity/id.",
-                "targets": [o.id for o in r.obligations],
-                "hint_ids": [],
-            }
-        )
-
-    if not r.matter_type:
-        directives.append(
-            {
-                "type": "matter_type_resolution",
-                "field": "matter_type",
-                "instruction": "Pick highest-evidence candidate; ask only if tied in tutorial mode.",
-                "targets": [],
-                "hint_ids": [],
-            }
-        )
-
-    # Emit directed_inference directives for active profiles whose target fields are absent.
     signals = profile_signals(doc_text)
-    emitted_fields: set[str] = set()
-    for profile, score in signals.items():
-        if score < 0.34:
-            continue
-        for field in PROFILE_TARGETS.get(profile, []):
-            if field in absent and field not in emitted_fields:
-                emitted_fields.add(field)
-                directives.append(
-                    {
-                        "type": "directed_inference",
-                        "field": field,
-                        "instruction": (
-                            f"Profile '{profile}' active (score {score}); '{field}' is absent."
-                            f" Populate {field} from a bounded read of the source around"
-                            " supporting spans only; every added entity carries evidence_id"
-                            " and source_ref. No textual support: leave empty and add an"
-                            " extraction_warning."
-                        ),
-                        "targets": [],
-                        "hint_ids": [],
-                    }
-                )
 
     candidate_manifest = candidate_manifest or {
         "schema_version": "legal-diagram-candidates",
@@ -214,6 +139,11 @@ def build_manifest(
     }
     llm_enrichment = llm_enrichment or {"mode": "json_patch_only", "evidence_packets": [], "directives": []}
 
+    # Merge legacy directives into the single canonical directive lane.
+    legacy = build_legacy_directives(r, doc_text)
+    merged_directives = list(llm_enrichment.get("directives", [])) + legacy
+    llm_enrichment = {**llm_enrichment, "directives": merged_directives}
+
     return {
         "extraction_result": r.to_dict(),
         "extraction_hints": [{"id": f"H{i}", **_hint(h)} for i, h in enumerate(r.extraction_hints)],
@@ -223,7 +153,6 @@ def build_manifest(
             "absent_fields": absent,
             "signal_map": r.signal_map,
         },
-        "enrichment_directives": directives,
         "matter_type_evidence": _matter_evidence(r),
         "candidate_manifest": candidate_manifest,
         "llm_enrichment": llm_enrichment,

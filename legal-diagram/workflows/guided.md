@@ -2,25 +2,24 @@
 
 Interactive default lane. Digest or elicit, show findings, hand to shared generation core (auto-picks with rationale and offers alternatives). One matter commonly yields several diagrams per session.
 
-## Step 0 — Input detection
+## Step 0 — Receive router handoff
 
-File path or pasted text present → docs path (Step 1A). Chat description only, or no input → intake path (Step 1B).
+The routing gate already detected input, resolved `diagram_scope` (multi-file structured choice), and ran Pass 1. This lane is entered after GATE A. You receive `manifest_cache`, `input_source`, and `diagram_scope`.
 
-**If 2+ files detected AND user did not specify scope** (did not say "one diagram", "combined", or "per document"), ask before anything else: ⛔ BLOCKING
+- `manifest_cache` present (file or pasted text) → docs path (Step 1A).
+- No `manifest_cache` (matter description only, no docs) → intake path (Step 1B).
 
-> Got **[N] documents**. One combined diagram covering the whole matter, or a separate diagram per document?
-
-Store `diagram_scope = "combined" | "per_doc"`. Default to `combined` on any affirmative or no response. Skip gate for single-file input or when user's message already implies scope.
+Do not re-detect input or re-ask scope; the router owns both.
 
 ## Step 0.5 — Confirm input
 
-After detecting input, confirm to the user in one plain-English sentence what file or text was read (e.g., "I've read **[filename]**." or "Got your text."). Set `output_mode = "inline"` always for the digest step. HTML output is produced only at Step 3 alongside the diagram.
+After detecting input, confirm to the user in one plain-English sentence what file or text was read (e.g., "I've read **[filename]**." or "Got your text."). The HTML report is decided later at GATE B (`workflows/generation.md` § Step 5), not here.
 
 Set `source_path` = absolute path to input file if available (file input only; null for pasted text or stdin).
 
 ## Step 1A — Digest provided material
 
-Enter `workflows/extract.md` with `skip_confirmation=false` (show digest, do not suppress). Returns enriched `ExtractionResult` plus coverage. Go to Step 2.
+Enter `workflows/extract.md` with `skip_confirmation=false` (show digest, do not suppress) and the `manifest_cache` from the router, so extract.md skips Pass 1 and resumes at Pass 2. Returns enriched `ExtractionResult` plus coverage. Go to Step 2.
 
 ## Step 1B — Elicit (no docs)
 
@@ -90,4 +89,4 @@ Do not call `generation.md` until user responds. Gate counts as one of guided mo
 
 ## Step 3 — Generate
 
-Load `workflows/generation.md` with enriched extraction, **confirmed type from Step 2.5**, `mode=guided`, `output_mode`, `source_path`, and `digest_rows` from Step 2. Guards, generates, delivers, and loops.
+Load `workflows/generation.md` with enriched extraction, **confirmed type from Step 2.5**, `mode=guided`, `source_path`, and `digest_rows` from Step 2. Guards, generates, delivers, and loops. The HTML report is decided at GATE B inside generation Step 5.

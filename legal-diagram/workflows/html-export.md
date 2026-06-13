@@ -4,13 +4,13 @@ Optional. Builds a standalone scientific-paper-figure HTML from Mermaid block an
 
 ## Step 1 — Opt-in
 
-Caller passed `html_export=true` → skip prompt. Otherwise present one line: "Export as standalone HTML? Y/N (default Y) — pan/zoom, legend, SVG/PNG/PDF/save." Affirmative or no response → proceed. Explicit N → exit. "Yes, save to <path>" captures path.
+Caller passed `html_export=true` → skip prompt. Otherwise present one line: "Export as standalone HTML? Y/N (default Y) — pan/zoom, semantic legend, save/export menu." Affirmative or no response → proceed. Explicit N → exit. "Yes, save to <path>" captures path.
 
 ## Step 2 — Collect inputs
 
 Collect `semantic_map_json` from caller (passed from `workflows/generation.md` § Step 3.5). If absent or empty, default to `'{}'` — coloring JS no-ops gracefully and legend hidden.
 
-Determine Mermaid asset mode. Prefer vendored file at a vendored Mermaid file under `assets/vendor/`. If absent, do not load network JavaScript unless user or caller explicitly accepts CDN fallback; CLI flag `--allow-cdn`, pinned to Mermaid 10.9.1.
+Determine Mermaid asset mode. Prefer vendored file at assets/vendor/mermaid.min.js (skill-root relative, not shipped by default). If absent, do not load network JavaScript unless user or caller explicitly accepts CDN fallback; CLI flag `--allow-cdn`, pinned to Mermaid 10.9.1.
 
 ## Step 2a — Build the FigureDescription
 
@@ -29,11 +29,11 @@ User-specified path validated, else `./diagrams/` (created if absent; otherwise 
 
 ## Step 4 — Detect runtime and render
 
-**Detect context first.** Check `render_html.py` reachable: run `python <skill-dir>/scripts/check_setup.py` or test `python --version`. Two paths:
+**Detect context first.** Check `render_html.py` reachable: run `python scripts/check_setup.py` or test `python --version`. Two paths:
 
 ### 4a — CLI / local Python available
 
-`python <skill-dir>/scripts/render_html.py --mermaid-block <block> --figure-desc <JSON> --output-path <path> --semantic-map '<semantic_map_json>'`
+`python scripts/render_html.py --mermaid-block <block> --figure-desc <JSON> --output-path <path> --semantic-map '<semantic_map_json>'`
 
 Append `--allow-cdn` only after explicit approval for network-loaded Mermaid.
 
@@ -48,4 +48,4 @@ Assemble HTML inline using same escaping rules as `render_html.py`: all matter t
 **CLI path:** Print "HTML exported to: `<path>`."
 **Web app path:** Print "HTML figure ready in the artifact panel — open, copy, or download from there."
 
-HTML embeds escaped diagram source, figure description, and toolbar (download SVG/PNG, save HTML, pan/zoom, edit-and-re-render). Fully self-contained when a vendored Mermaid file under `assets/vendor/` vendored into export; otherwise shows source-only output unless `--allow-cdn` used. Description static once generated.
+HTML embeds escaped diagram source, figure description, ARIA tab panels, labelled pill controls (Zoom in, Zoom out, Reset, High contrast, Flip, Full screen), a Save / Export menu (PNG, SVG, HTML), and an Advanced editor disclosure for tweaking the Mermaid source. Fully self-contained when a vendored mermaid.min.js (assets/vendor/ under skill root) is embedded into export; otherwise shows the source-only explainer panel unless `--allow-cdn` used. Description static once generated.

@@ -6,7 +6,7 @@ Diagram-generation core shared by `direct.md` and `guided.md`. Lanes differ only
 
 ## Step 1 — Select type
 
-Fixed Mermaid type from caller → if type is `mindmap`, apply precision guard per `shared/diagram-type-map.md` § Mindmap scope rule before honouring it. Otherwise proceed directly. Run `python <skill-dir>/scripts/diagram_selector.py --extraction-json <enriched JSON>` with intent. Keep `recommended_type`, `rationale`, `alternatives`, `confidence`.
+Fixed Mermaid type from caller → if type is `mindmap`, apply precision guard per `shared/diagram-type-map.md` § Mindmap scope rule before honouring it. Otherwise proceed directly. Run `python scripts/diagram_selector.py --extraction-json <enriched JSON>` with intent. Keep `recommended_type`, `rationale`, `alternatives`, `confidence`.
 
 Confidence gate, **direct mode only** (hard cap 1): < 0.50 → present top 2 and ask once; ≥ 0.50 → proceed. Guided mode never blocks here; already showed digest and offers alternatives at delivery.
 
@@ -75,9 +75,7 @@ Mark `unverified: true` for any hint-only entity or any entity where source text
 
 Use plain-language diagram names from `shared/diagram-type-map.md` § Plain-language names in everything user reads. Never print a Mermaid-internal type name to user.
 
-**If `mode == "guided" and output_mode == "html"`:** skip Step 4 entirely. Diagram goes into HTML (Step 5); no raw block in chat. User already chose type at Step 2.5.
-
-**If `mode == "guided" and output_mode == "inline"`:** show fenced Mermaid block and sanitizations only. No rationale. No alternatives. User already saw both at Step 2.5.
+**If `mode == "guided"`:** show the fenced Mermaid block and sanitizations only. No rationale, no alternatives; the user saw both at Step 2.5.
 
 **If `mode == "direct"`:** full output, no preamble:
 1. Fenced Mermaid block inline (block uses technical syntax; expected and fine).
@@ -85,22 +83,18 @@ Use plain-language diagram names from `shared/diagram-type-map.md` § Plain-lang
 3. Alternatives, one line: "This matter would also work as a <plain alt1> (<what it shows>) or a <plain alt2> (<what it shows>) — want either?" Pull "what it shows" from `shared/figure-description-schema.md` caption patterns. Offer only types a populated driving field supports; never list a type with no backing data.
 4. Bullet list of any sanitizations (normalized names, escaped colons, truncated labels).
 
-## Step 5 — Output
+## Step 5 — Output and GATE B (HTML report) ⛔ BLOCKING
 
-No vault note written. Output = CLI display only: fenced Mermaid block (Step 3–4) renders as artifact in Claude web app and syntax-highlighted code in CLI.
+No note written to disk. The fenced Mermaid block (Step 3-4) renders in a Mermaid-capable chat or Markdown viewer, and as syntax-highlighted code in a terminal.
 
-**If caller `output_mode = "html"` (chosen in guided.md Step 0.5):** re-invoke `render_html.py` with same `digest_rows` + `source_path` from Step 2, now passing `--mermaid-block` and `--figure-desc`. Produces final HTML with verification table above diagram. Confirm in plain English: "I've added the diagram to your report — [filepath]." Do **not** offer HTML again.
+Then present **GATE B** as a structured choice when the host supports one, otherwise a numbered list, not a typed Y/n. Lead plainly: "Want the full report as a file you can open, print, and share? It pairs the diagram with a table of the exact wording from your document for each item found." Options:
 
-**If `output_mode = "inline"` or mode is `direct`:** after fenced block, offer prominently — not buried in prose:
+- **HTML report** (recommended, list first)
+- **No, just the diagram**
 
----
-**→ Get the full report as a file you can open, print, and share?** Y / n *(default Y)*
+**HTML report** → set `html_export=true`, then load `workflows/html-export.md` (it skips its own opt-in when the flag is set), passing `semantic_map_json` (Step 3.5), `digest_rows` (Step 3.6), and `source_path`. Confirm in plain English when done. **No, just the diagram** → continue to Step 6.
 
-Opening it in your browser gives you the diagram plus a table showing the exact wording from your document for each item found.
-
----
-
-Y or no response → load `workflows/html-export.md`. Explicit N → continue to Step 6.
+Single HTML decision point for both lanes; do not pre-choose HTML earlier and do not ask twice.
 
 ## Step 6 — Refine / branch
 
@@ -112,6 +106,6 @@ Before refine prompt, re-surface a compact reference of diagram contents so user
 - **mindmap**: list top-level branches.
 - **other types**: list the primary labelled elements.
 
-Then: "Want to change anything? Describe it in plain English, name an alternative diagram type, or type Y to export as HTML."
+Then: "Want to change anything? Describe it in plain English, name an alternative diagram type, or ask for the HTML report." If HTML was declined at GATE B and the user now asks for it, load `workflows/html-export.md`.
 
 Accept plain-English change descriptions ("remove the Arbour point", "rename CM Pitts to Correctional Manager Pitts", "add a node for the settlement offer") → translate to structural edits before re-generating. Re-run guards on any new block. Named alternative type → fresh generation pass. If HTML was exported, re-invoke `workflows/html-export.md` in full (rebuild FigureDescription; never reuse a stale one).

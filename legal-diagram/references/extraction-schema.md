@@ -63,4 +63,4 @@ Governing rule: script emits a populated entity only when a pattern fully resolv
 - `risk_level` and `decision_points` never script-populated; manifest always emits directives for them.
 - PDF extraction structurally unreliable; `events[]` and `legal_authorities[]` most recoverable, tables least.
 - XLSX strongest for `tasks[]`, `deadlines[]`, and any table-mapped entity; weak for `relationships[]`.
-- Conversation-context input has no script tier. Claude populates everything, using manifest's `absent_fields` list as checklist.
+- Conversation-context input has no script tier. The assistant populates everything, using manifest's `absent_fields` list as checklist.

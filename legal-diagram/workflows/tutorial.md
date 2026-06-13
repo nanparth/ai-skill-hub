@@ -15,7 +15,7 @@ Present: `[L] Litigation` — contract dispute chronology (timeline); `[C] Corpo
 Use chosen scenario (below) and walk these steps aloud:
 
 1. **Narrate** the scenario.
-2. **Simulated manifest summary** (hardcoded, not from script): matter_type, entity counts, one illustrative directive, one illustrative hint. One line: script produced this TODO list and Claude now executes it (the two-pass idea).
+2. **Simulated manifest summary** (hardcoded, not from script): matter_type, entity counts, one illustrative directive, one illustrative hint. One line: script produced this TODO list and the assistant now executes it (the two-pass idea).
 3. **Simulated plain-language digest** — render scenario's populated fields as a guided-mode digest, exactly as a real user would see it. Use scenario's hardcoded data; format per `workflows/guided.md` § Step 2 rendering table. Scenario L: show Parties & roles, Key events (chronological), Legal obligations. Scenario C: show Entities, Ownership, Relationships. After each section, close with: "Does this look right? Correct a name, add something I missed, or remove anything — then I'll suggest a diagram type." Simulate user responding "looks good" and continue. Step exists so users see what guided-mode digests look like before running one for real.
 4. **Simulated type confirmation** — show `diagram_selector.py` recommendation as user would see it: **Recommended:** [plain name] — [one-sentence rationale]. **Alternatives:** [alt1] ([what it shows]) · [alt2] ([what it shows]). Simulate user confirming recommendation and continue.
 5. **Print the quirk** for that type (`shared/parser-guards.md`).

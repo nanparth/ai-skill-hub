@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from extraction import extract
+from extraction.language import annotate_blocks
 from extraction.manifest import build_manifest
 from normalize import DEFAULT_LIMITS, normalize, normalize_stdin_text
 
@@ -97,6 +98,7 @@ def main() -> None:
     p.add_argument("--pages")
     p.add_argument("--sheets")
     p.add_argument("--matter_type")
+    p.add_argument("--lang", choices=("auto", "en", "fr"), default="auto")
     p.add_argument("--include-source-path", action="store_true")
     for key, default in DEFAULT_LIMITS.items():
         p.add_argument(f"--{key.replace('_', '-')}", type=int, default=default, dest=key)
@@ -136,6 +138,11 @@ def main() -> None:
         source = _safe_source(path, args.include_source_path)
         matter_name = _safe_matter_name(path)
 
+    # W3.1 block-level language pass: per-block lang stays internal; only the
+    # aggregate language_profile is emitted in the manifest.
+    override = args.lang if args.lang in ("en", "fr") else None
+    language_profile = annotate_blocks(getattr(doc, "blocks", []) or [], override=override)
+
     result, candidate_manifest, llm_enrichment = extract(doc, matter_type=args.matter_type, input_source=source)
     if not result.matter_name and matter_name:
         result.matter_name = matter_name
@@ -144,7 +151,9 @@ def main() -> None:
         str(getattr(b, "text", "") or "") for b in (getattr(doc, "blocks", []) or [])
     )[:20000]
 
-    print(json.dumps(build_manifest(result, candidate_manifest, llm_enrichment, doc_text=doc_text), ensure_ascii=False, indent=2))
+    manifest = build_manifest(result, candidate_manifest, llm_enrichment, doc_text=doc_text)
+    manifest["language_profile"] = language_profile
+    print(json.dumps(manifest, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

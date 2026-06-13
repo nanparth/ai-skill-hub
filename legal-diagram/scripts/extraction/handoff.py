@@ -48,6 +48,8 @@ def build_llm_enrichment(candidate_manifest: dict[str, Any]) -> dict[str, Any]:
                 "field": cand.get("target_field"),
                 "frame_type": cand.get("frame_type"),
                 "confidence": confidence,
+                "targets": [],
+                "hint_ids": [],
                 "evidence_ids": evidence_ids,
                 "read_policy": read_policy,
                 "instruction": "Resolve only from supplied evidence. Return JSON Patch operations with evidence_id and source_ref, or add an extraction_warning if unsupported.",
@@ -64,6 +66,113 @@ def build_llm_enrichment(candidate_manifest: dict[str, Any]) -> dict[str, Any]:
         "evidence_packets": list(wanted_evidence.values()),
         "directives": directives,
     }
+
+
+def build_legacy_directives(r: Any, doc_text: str) -> list[dict[str, Any]]:
+    """Build the six legacy directive types from an ExtractionResult and raw document text.
+
+    These directives are merged into ``llm_enrichment["directives"]`` by
+    ``build_manifest`` so that all directive types share one canonical lane.
+
+    Normalised shape for every directive:
+        type, field, instruction, targets[], hint_ids[], evidence_ids[], read_policy
+    ``resolve_candidate`` directives (produced by ``build_llm_enrichment``) additionally
+    carry ``candidate_id``, ``frame_type``, and ``confidence``.
+    Absent values are empty lists or empty strings, never missing keys.
+    """
+    # Import manifest constants lazily to avoid a circular import at module level.
+    from .manifest import (
+        NULL_FIELDS,
+        HINT_GATE,
+        LLM_ONLY,
+        ENTITY_FIELDS,
+        PROFILE_TARGETS,
+        profile_signals,
+    )
+
+    populated = [k for k in ENTITY_FIELDS if getattr(r, k)]
+    hint_fields = sorted({h.suggested_field for h in r.extraction_hints})
+    hint_only = [f for f in hint_fields if f not in populated]
+    absent = [k for k in ENTITY_FIELDS if k not in populated and k not in hint_only]
+
+    directives: list[dict[str, Any]] = []
+
+    _empty: dict[str, Any] = {
+        "targets": [],
+        "hint_ids": [],
+        "evidence_ids": [],
+        "read_policy": "",
+    }
+
+    for field_name, attr, instr in NULL_FIELDS:
+        items = getattr(r, field_name)
+        targets = [getattr(it, "id", str(i)) for i, it in enumerate(items) if getattr(it, attr, None) is None]
+        if targets:
+            directives.append({
+                **_empty,
+                "type": "null_field_classification",
+                "field": f"{field_name}[].{attr}",
+                "instruction": instr,
+                "targets": targets,
+            })
+
+    for i, h in enumerate(r.extraction_hints):
+        if h.confidence < HINT_GATE:
+            directives.append({
+                **_empty,
+                "type": "hint_resolution",
+                "field": h.suggested_field,
+                "instruction": f"Resolve hint into {h.suggested_field} from snippet at {h.anchor}.",
+                "hint_ids": [f"H{i}"],
+            })
+
+    for field_name, instr in LLM_ONLY.items():
+        directives.append({
+            **_empty,
+            "type": "implicit_inference",
+            "field": field_name,
+            "instruction": instr,
+        })
+
+    if r.obligations and (r.controls or "controls" in hint_only):
+        directives.append({
+            **_empty,
+            "type": "cross_linking",
+            "field": "controls[].obligation_id",
+            "instruction": "Link each control to the obligation it satisfies by proximity/id.",
+            "targets": [o.id for o in r.obligations],
+        })
+
+    if not r.matter_type:
+        directives.append({
+            **_empty,
+            "type": "matter_type_resolution",
+            "field": "matter_type",
+            "instruction": "Pick highest-evidence candidate; ask only if tied in tutorial mode.",
+        })
+
+    signals = profile_signals(doc_text)
+    emitted_fields: set[str] = set()
+    for profile, score in signals.items():
+        if score < 0.34:
+            continue
+        for field in PROFILE_TARGETS.get(profile, []):
+            if field in absent and field not in emitted_fields:
+                emitted_fields.add(field)
+                directives.append({
+                    **_empty,
+                    "type": "directed_inference",
+                    "field": field,
+                    "instruction": (
+                        f"Profile '{profile}' active (score {score}); '{field}' is absent."
+                        f" Populate {field} from a bounded read of the source around"
+                        " supporting spans only; every added entity carries evidence_id"
+                        " and source_ref. No textual support: leave empty and add an"
+                        " extraction_warning."
+                    ),
+                })
+
+    return directives
 
 
 def filter_evidence(evidence: list[EvidencePacket], candidates: list[Candidate]) -> list[EvidencePacket]:

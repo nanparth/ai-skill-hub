@@ -28,6 +28,7 @@ class DocBlock:
     heading_path: List[str] = field(default_factory=list)
     list_ordinal: Optional[str] = None
     table_coords: Optional[Tuple[int, int]] = None
+    lang: str = "en"                      # effective language; set by the W3.1 block pass
 
 @dataclass
 class DocTable:

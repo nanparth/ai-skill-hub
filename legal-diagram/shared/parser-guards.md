@@ -27,12 +27,13 @@ Applies when selector sets `grouping_suggested`.
 
 Before `erDiagram`/`flowchart`: node IDs reject spaces and hyphens. Apply in order; log each substitution to user ("Entity name normalised: 'Operating Sub A' → 'OperatingSubA'"):
 
-1. Spaces removed: `Operating Sub A` → `OperatingSubA`.
-2. Hyphens removed: `Sub-A` → `SubA`.
-3. Leading digit → prefix `E`: `1stFinance` → `E1stFinance`.
-4. Collision → numeric suffix: two `OperatingSubA` → `OperatingSubA1`, `OperatingSubA2`.
+1. Accents transliterated (NFD-decompose, strip combining marks; node ID only, label keeps accents verbatim): `Société Générale Ltée` → `Societe Generale Ltee`.
+2. Spaces removed: `Operating Sub A` → `OperatingSubA`.
+3. Hyphens removed: `Sub-A` → `SubA`.
+4. Leading digit → prefix `E`: `1stFinance` → `E1stFinance`.
+5. Collision → numeric suffix: two `OperatingSubA` → `OperatingSubA1`, `OperatingSubA2`.
 
-Keep original name in display label: erDiagram relationship label (double-quoted), or flowchart node text `Node[Operating Sub A]` with ID normalized.
+Keep original name in display label: erDiagram relationship label (double-quoted), or flowchart node text `Node[Operating Sub A]` with ID normalized. Labels containing `«»`, apostrophes, or `,` take the double-quoted form: `SGL["Société Générale Ltée (« l'Acheteuse »)"]`.
 
 ## Confirmed bugs (project-verified)
 
@@ -47,4 +48,4 @@ Keep original name in display label: erDiagram relationship label (double-quoted
 
 ## Platform note
 
-Fenced ` ```mermaid ` renders in any Mermaid-capable Markdown viewer (GitHub, VS Code, Obsidian, the Claude web app). HTML export prefers vendored Mermaid; uses pinned CDN fallback only when explicitly enabled. `Sankey`/`architecture`/`kanban` render unevenly; selector substitutes a portable primary (`shared/diagram-type-map.md`).
+Fenced ` ```mermaid ` renders in any Mermaid-capable Markdown viewer (GitHub, VS Code, Obsidian, most LLM chat interfaces). HTML export prefers vendored Mermaid; uses pinned CDN fallback only when explicitly enabled. `Sankey`/`architecture`/`kanban` render unevenly; selector substitutes a portable primary (`shared/diagram-type-map.md`).

@@ -1,5 +1,6 @@
 ---
 name: tech-refactor
+version: '1.0.0'
 description: 'Use when a codebase has structural problems requiring systematic analysis before changes: competing implementations, god modules, unclear boundaries, or deep technical debt. Trigger on: "refactor this service", "overhaul this legacy system", "too much technical debt", "architectural migration". Not for tactical fixes or small cleanup.'
 argument-hint: '<codebase-path> [--focus boundaries|duplication|legacy-paths]'
 ---
