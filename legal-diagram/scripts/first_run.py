@@ -73,6 +73,18 @@ def mark(path: Path) -> dict:
         return {"state": "unknown", "state_path": None, "marked": False}
 
 
+try:
+    from fetch_mermaid import vendor_status as _vendor_status
+except Exception:
+    def _vendor_status() -> dict:  # type: ignore[misc]
+        vendor_path = Path(__file__).parent.parent / "assets" / "vendor" / "mermaid.min.js"
+        return {
+            "present": vendor_path.exists(),
+            "path": str(vendor_path),
+            "hint": "run: python scripts/fetch_mermaid.py to vendor the engine for offline use",
+        }
+
+
 def _main() -> None:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--mark", action="store_true")
@@ -80,6 +92,7 @@ def _main() -> None:
 
     path = _state_path()
     result = mark(path) if args.mark else detect(path)
+    result["mermaid_vendor"] = _vendor_status()
     print(json.dumps(result))
 
 

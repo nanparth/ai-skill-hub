@@ -151,10 +151,10 @@ def test_entities_corp_structure_fixture_integration() -> None:
 def test_privacy_operator_party() -> None:
     """Policy-operator declaration 'X ("we", "our")' must yield X as a party."""
     data = _run_extract(
-        'This Privacy Policy describes how Pinecrest Digital Services Inc. collects, uses, discloses, and protects personal information in accordance with PIPEDA.'
+        'This Privacy Policy describes how Example Digital Services Inc. collects, uses, discloses, and protects personal information in accordance with PIPEDA.'
     )
     parties = _promoted_parties(data)
-    assert any("Pinecrest Digital Services Inc" in p for p in parties), (
+    assert any("Example Digital Services Inc" in p for p in parties), (
         f"Policy operator party missing. Found: {parties}"
     )
 
@@ -162,7 +162,7 @@ def test_privacy_operator_party() -> None:
 def test_privacy_service_provider_party() -> None:
     """Corp-suffix name listed as service provider/third party must yield a party."""
     data = _run_extract(
-        "Pinecrest Digital Services Inc. transfers personal information to the following third parties:\n"
+        "Example Digital Services Inc. transfers personal information to the following third parties:\n"
         "- **Example Payments Corp.**: receives payment data for payment processing; bound by a data processing agreement."
     )
     parties = _promoted_parties(data)
@@ -176,7 +176,7 @@ def test_privacy_multiple_service_providers() -> None:
     # The fixture's list-item format is the primary vehicle for service-provider enumeration.
     data = _run_extract(
         "## Data Flows and Third-Party Transfers\n\n"
-        "Pinecrest Digital Services Inc. transfers personal information to the following third parties:\n\n"
+        "Example Digital Services Inc. transfers personal information to the following third parties:\n\n"
         "- **Stacklayer Cloud Inc.**: hosts our platform infrastructure.\n"
         "- **Insightful Analytics Ltd.**: receives pseudonymised usage data.\n"
         "- **Meridian Support Systems Inc.**: receives communications data.\n"

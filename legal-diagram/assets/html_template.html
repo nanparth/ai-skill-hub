@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
   <title>{{ matter_title }}</title>
   <style>
     :root {
@@ -11,7 +12,10 @@
       --rule: #c8c8c8;
       --bg: #ffffff;
       --accent: #2a4d69;
+      color-scheme: light;
     }
+    html { background: #f4f4f2; }
+    pre.mermaid, .diagram-inner svg { background: #ffffff; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -163,6 +167,7 @@
       padding-bottom: 11px;
     }
     .tab-content {
+      position: relative;
       border: 1px solid var(--rule);
       border-top: 2px solid var(--accent);
       padding: 18px 20px;
@@ -225,13 +230,14 @@
     /* --- Floating action buttons --- */
     .fab-group {
       position: fixed;
-      right: max(16px, calc(50vw - 442px));
-      top: 50%;
-      transform: translateY(-50%);
+      right: 16px;
+      bottom: 56px;
+      top: auto;
+      transform: none;
       z-index: 500;
       display: flex;
-      flex-direction: column;
-      gap: 12px;
+      flex-direction: row;
+      gap: 8px;
     }
     .fab-item {
       position: relative;
@@ -240,34 +246,45 @@
       justify-content: flex-end;
     }
     .fab-btn {
-      height: 40px;
-      padding: 0 14px;
-      border-radius: 20px;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border-radius: 50%;
       background: var(--accent);
       color: #fff;
       border: none;
-      font-size: 1rem;
+      font-size: 1.05rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.28);
       transition: background 0.15s, transform 0.12s;
       flex-shrink: 0;
       line-height: 1;
-      white-space: nowrap;
+      position: relative;
     }
     .fab-btn:hover, .fab-btn.active {
       background: #1e3a52;
       transform: scale(1.05);
     }
-    .fab-btn-label { font-size: 0.8rem; font-weight: 600; }
+    .fab-btn-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
     .fab-popup {
       position: absolute;
-      right: 54px;
-      top: 50%;
-      transform: translateY(-50%);
+      bottom: 48px;
+      right: 0;
+      top: auto;
+      transform: none;
       background: #fff;
       border: 1px solid var(--rule);
       border-left: 3px solid var(--accent);
@@ -339,7 +356,13 @@
     #diagramFrame.high-contrast .sem-risk-high rect:not(.sem-pattern-overlay),
     #diagramFrame.high-contrast .sem-risk-high polygon { stroke-width: 3 !important; }
     #diagramFrame.high-contrast .sem-pattern-overlay { display: none !important; }
+    /* Generic high-contrast effect for non-flowchart diagrams (timeline, gantt, sequence, ER, etc.)
+       Scoped to .diagram-inner so the filter does not tint the control buttons or hint chip. */
+    #diagramFrame.high-contrast .diagram-inner { filter: contrast(1.4) saturate(1.1); }
+    #diagramFrame.high-contrast .diagram-inner svg text { fill: #000 !important; }
     @media (prefers-contrast: more) { #diagramFrame { filter: contrast(1.35); } }
+    /* Edge-label font size fix */
+    #diagramInner .edgeLabel, #diagramInner .edgeLabel span, #diagramInner .edgeLabel p, #diagramInner .edgeLabels foreignObject div { font-size: 0.95rem; }
     /* Semantic legend */
     .semantic-legend {
       margin: 8px 2px 20px;
@@ -414,21 +437,23 @@
       outline-offset: 2px;
     }
     .hint-pulse {
-      font-size: 0.7rem;
-      color: var(--accent);
-      letter-spacing: 0.3px;
-      padding: 2px 10px 3px;
-      border-radius: 10px;
-      border: 1px solid rgba(42,77,105,0.30);
-      margin-left: 6px;
-      animation: hint-pulse-once 0.7s ease-out 0.4s 1 both;
-      display: inline-block;
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 300px;
+      background: rgba(42,77,105,0.95);
+      color: #fff;
+      font-family: "Georgia", "Times New Roman", serif;
+      font-size: 0.76rem;
+      padding: 7px 10px 7px 13px;
+      border-radius: 8px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.22);
     }
-    @keyframes hint-pulse-once {
-      0%   { background: transparent; border-color: rgba(42,77,105,0.30); }
-      40%  { background: rgba(42,77,105,0.18); border-color: rgba(42,77,105,0.70); }
-      100% { background: transparent; border-color: rgba(42,77,105,0.30); }
-    }
+    .hint-pulse-text { flex: 1; }
     @media (prefers-reduced-motion: reduce) { .hint-pulse { animation: none; } }
     @media print {
       body { background: #fff; }
@@ -441,6 +466,19 @@
       .tab-panel { display: block !important; margin-bottom: 18px; }
       .tab-panel::before { content: attr(data-label); display: block; font-size: 0.73rem; letter-spacing: 1.3px; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--rule); padding-bottom: 4px; margin-bottom: 8px; font-weight: 700; }
       .semantic-legend { font-size: 0.72rem; margin-bottom: 12px; }
+      .diagram-frame, .diagram-inner svg, .semantic-legend .legend-swatch, [class*="sem-"] rect, [class*="sem-"] polygon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .diagram-frame { background: #ffffff; }
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #f4f4f2; color: var(--ink); }
+      .paper { background: #ffffff; }
+      .diagram-frame, .diagram-frame:fullscreen, .diagram-frame:-webkit-full-screen { background: #fbfbfa; }
+      .diagram-inner svg, pre.mermaid { background: #ffffff; }
+      textarea.editor { background: #fff; color: var(--ink); }
+    }
+    @media (forced-colors: active) {
+      .diagram-inner svg text { fill: CanvasText !important; }
+      .diagram-inner svg rect, .diagram-inner svg polygon, .diagram-inner svg ellipse { fill: Canvas; stroke: CanvasText; }
     }
   </style>
   {% if digest_rows %}<style>
@@ -482,13 +520,14 @@
         {% endif %}
       </div>
       <script id="semantic-map" type="application/json">{{ semantic_map | tojson }}</script>
+      <script id="mermaid-source" type="application/json">{{ mermaid_block | tojson }}</script>
 
       <!-- Viewport controls — persists in fullscreen -->
       <div class="diagram-controls" id="diagramControls">
         <button type="button" data-action="zoom-in"   title="{{ ui.ctrl_zoom_in }}"><span class="ctrl-glyph">+</span><span class="ctrl-label">{{ ui.ctrl_zoom_in }}</span></button>
         <button type="button" data-action="zoom-out"  title="{{ ui.ctrl_zoom_out }}"><span class="ctrl-glyph">−</span><span class="ctrl-label">{{ ui.ctrl_zoom_out }}</span></button>
         <button type="button" data-action="reset"     title="{{ ui.ctrl_reset }}"><span class="ctrl-glyph">⟲</span><span class="ctrl-label">{{ ui.ctrl_reset }}</span></button>
-        <button type="button" data-action="contrast"  title="{{ ui.ctrl_contrast }}" id="contrastBtn" style="display:none;"><span class="ctrl-glyph">◐</span><span class="ctrl-label">{{ ui.ctrl_contrast }}</span></button>
+        <button type="button" data-action="contrast"  title="{{ ui.ctrl_contrast }}" id="contrastBtn"><span class="ctrl-glyph">◐</span><span class="ctrl-label">{{ ui.ctrl_contrast }}</span></button>
         <button type="button" data-action="flip"      title="{{ ui.ctrl_flip }}" id="flipBtn" style="display:none;"><span class="ctrl-glyph">↔</span><span class="ctrl-label">{{ ui.ctrl_flip }}</span></button>
         <button type="button" data-action="fullscreen" title="{{ ui.ctrl_fullscreen }}"><span class="ctrl-glyph">⛶</span><span class="ctrl-label">{{ ui.ctrl_fullscreen }}</span></button>
         <button type="button" data-action="exit-fs"   title="{{ ui.ctrl_exit_fullscreen }}">{{ ui.ctrl_exit_fullscreen_label }}</button>
@@ -522,10 +561,10 @@
       <button class="tab-btn" data-tab="observations" role="tab" id="tab-btn-observations" aria-selected="false" aria-controls="tab-observations" tabindex="-1">{{ ui.tab_observations }}</button>
       <button class="tab-btn" data-tab="limitations" role="tab" id="tab-btn-limitations" aria-selected="false" aria-controls="tab-limitations" tabindex="-1">{{ ui.tab_limitations }}</button>
       {% if digest_rows %}<button class="tab-btn" data-tab="source-docs" role="tab" id="tab-btn-source-docs" aria-selected="false" aria-controls="tab-source-docs" tabindex="-1">{{ ui.tab_source_docs }}</button>{% endif %}
-      <!-- Tab-row pulse hint (W5.2.4): one-shot animation on first visit; hidden after Got it -->
-      <span class="hint-pulse" id="hintPulse">{{ ui.hint_pulse }}</span>
     </div>
     <div class="tab-content">
+      <!-- Tab-content floating hint popup (C-hints-overhaul #3/#7): moved out of tablist to fix ARIA violation -->
+      <div class="hint-pulse" id="hintPulse" role="status"><span class="hint-pulse-text">{{ ui.hint_pulse }}</span><button type="button" class="hint-got-it" id="hintPulseGotIt">{{ ui.hint_got_it }}</button></div>
       <div class="tab-panel active" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview" data-label="{{ ui.panel_overview }}">
         <p>{{ overview }}</p>
       </div>
@@ -596,51 +635,110 @@
   <!-- Maintainer: to embed the diagram renderer, re-export with --allow-cdn or place the library at assets/vendor/mermaid.min.js -->
   <script>
     if (window.mermaid) {
-      mermaid.initialize({ startOnLoad: true, securityLevel: 'strict' });
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: 'base',
+        themeVariables: {
+          primaryColor: '#F5F3EE',
+          primaryTextColor: '#1a1a1a',
+          primaryBorderColor: '#B0A898',
+          lineColor: '#8FA8BE',
+          fontSize: '16px',
+          background: '#ffffff',
+          darkMode: false
+        },
+        flowchart: { useMaxWidth: true, htmlLabels: true, wrappingWidth: 220 }
+      });
     }
 
-    // --- Coach hints (W5.2.4) ---
-    var HINT_KEY = 'legal-diagram-hints-v1';
+    // --- Coach hints (C-hints-overhaul #5): independent dismissal per hint ---
+    var HINT_CHIP_KEY = 'legal-diagram-hint-chip-v1';
+    var HINT_TABS_KEY = 'legal-diagram-hint-tabs-v1';
 
-    function _hintsDisabled() {
-      try {
-        return localStorage.getItem(HINT_KEY) === 'dismissed';
-      } catch (e) {
-        return true; // localStorage unavailable: treat as dismissed, never nag
-      }
+    function _hintDismissed(k) {
+      try { return localStorage.getItem(k) === 'dismissed'; } catch (e) { return true; }
     }
 
-    function _dismissHints() {
-      var chip = document.getElementById('hintChip');
-      var pulse = document.getElementById('hintPulse');
-      if (chip) { chip.style.display = 'none'; chip.setAttribute('aria-hidden', 'true'); }
-      if (pulse) { pulse.style.display = 'none'; pulse.setAttribute('aria-hidden', 'true'); }
-      try { localStorage.setItem(HINT_KEY, 'dismissed'); } catch (e) { /* unavailable */ }
+    function _persistDismiss(k) {
+      try { localStorage.setItem(k, 'dismissed'); } catch (e) { /* unavailable */ }
+    }
+
+    function _hideEl(el) {
+      if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); }
     }
 
     function _initHints() {
       var chip = document.getElementById('hintChip');
-      var pulse = document.getElementById('hintPulse');
-      var btn = document.getElementById('hintGotIt');
-      if (_hintsDisabled()) {
-        if (chip) { chip.style.display = 'none'; chip.setAttribute('aria-hidden', 'true'); }
-        if (pulse) { pulse.style.display = 'none'; pulse.setAttribute('aria-hidden', 'true'); }
-        return;
+      var chipBtn = document.getElementById('hintGotIt');
+      if (_hintDismissed(HINT_CHIP_KEY)) {
+        _hideEl(chip);
+      } else if (chipBtn) {
+        chipBtn.addEventListener('click', function () { _hideEl(chip); _persistDismiss(HINT_CHIP_KEY); });
       }
-      // First visit: show chip and pulse; wire Got it button
-      if (btn) btn.addEventListener('click', _dismissHints);
+      var pulse = document.getElementById('hintPulse');
+      var pulseBtn = document.getElementById('hintPulseGotIt');
+      if (_hintDismissed(HINT_TABS_KEY)) {
+        _hideEl(pulse);
+      } else if (pulseBtn) {
+        pulseBtn.addEventListener('click', function () { _hideEl(pulse); _persistDismiss(HINT_TABS_KEY); });
+      }
     }
 
     var mermaidSource = '';
-    window.addEventListener('DOMContentLoaded', function () {
-      var pre = document.querySelector('pre.mermaid');
-      if (pre) {
-        mermaidSource = pre.getAttribute('data-source') || pre.textContent;
-        var ed = document.getElementById('editor');
-        if (ed) ed.value = mermaidSource.trim();
+
+    // --- Initial render (P1 render hardening: size-gated to avoid zero-width race) ---
+    // startOnLoad is false, so we drive the first paint ourselves.  Before calling
+    // mermaid.render() we confirm the container has a nonzero width; if not, we defer
+    // via requestAnimationFrame until the layout engine reports a real size (handles the
+    // webapp-iframe case where the frame mounts hidden or mid-animation).
+    // On a transient render error we allow exactly ONE deferred retry before showing
+    // the source-only fallback.  The flip / cancelEdit / rerender paths are unchanged.
+    function _initialRender(container, src, isRetry) {
+      if (!window.mermaid || !src) return;
+      // Size gate: defer if the container has no layout width yet.
+      var w = container.getBoundingClientRect().width || container.offsetWidth || container.clientWidth;
+      if (w === 0) {
+        requestAnimationFrame(function () { _initialRender(container, src, isRetry); });
+        return;
       }
+      var id = 'mmd-' + Date.now();
+      try {
+        mermaid.render(id, src).then(function (res) {
+          container.innerHTML = res.svg;
+          resetView();
+          applySemanticColoring();
+          waitForSVGAndColor();
+        }).catch(function () {
+          if (!isRetry) {
+            // Single deferred retry before fallback.
+            requestAnimationFrame(function () { _initialRender(container, src, true); });
+          } else {
+            setMermaidSourceFallback(container, src);
+          }
+        });
+      } catch (err) {
+        if (!isRetry) {
+          requestAnimationFrame(function () { _initialRender(container, src, true); });
+        } else {
+          setMermaidSourceFallback(container, src);
+        }
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', function () {
+      var stash = document.getElementById('mermaid-source');
+      if (stash) { try { mermaidSource = JSON.parse(stash.textContent) || ''; } catch (e) { mermaidSource = ''; } }
+      var pre = document.querySelector('pre.mermaid');
+      if (!mermaidSource && pre) { mermaidSource = pre.getAttribute('data-source') || pre.textContent; }
+      var ed = document.getElementById('editor');
+      if (ed) ed.value = mermaidSource.trim();
       syncFlipButton(mermaidSource);
-      if (window.mermaid) waitForSVGAndColor();
+      if (window.mermaid) {
+        var container = document.getElementById('diagramInner');
+        if (container) { _initialRender(container, mermaidSource, false); }
+        waitForSVGAndColor();
+      }
       _initHints();
     });
 
@@ -912,19 +1010,29 @@
       setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
     }
 
+    // Returns an XML-serialized SVG string with a white background rect prepended.
+    // Both SVG and PNG exporters consume this so the white-background guarantee
+    // lives in one place.
+    function cloneSvgWithWhiteBg(svg) {
+      var clone = svg.cloneNode(true);
+      var bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bgRect.setAttribute('width', '100%');
+      bgRect.setAttribute('height', '100%');
+      bgRect.setAttribute('fill', '#ffffff');
+      clone.insertBefore(bgRect, clone.firstChild);
+      return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+    }
+
     function downloadSVG() {
       var svg = getSVG();
       if (!svg) { alert({{ ui.alert_svg_not_ready | tojson }}); return; }
-      var serializer = new XMLSerializer();
-      var source = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(svg);
-      downloadFromBlob(new Blob([source], { type: 'image/svg+xml' }), 'figure.svg');
+      downloadFromBlob(new Blob([cloneSvgWithWhiteBg(svg)], { type: 'image/svg+xml' }), 'figure.svg');
     }
 
     function downloadPNG() {
       var svg = getSVG();
       if (!svg) { alert({{ ui.alert_svg_not_ready | tojson }}); return; }
-      var serializer = new XMLSerializer();
-      var source = serializer.serializeToString(svg);
+      var source = cloneSvgWithWhiteBg(svg);
       var vb = svg.viewBox && svg.viewBox.baseVal;
       var w = Math.max((vb && vb.width) || svg.getBoundingClientRect().width || 800, 800);
       var h = Math.max((vb && vb.height) || svg.getBoundingClientRect().height || 600, 600);
@@ -973,6 +1081,20 @@
     var dragging = false, startX = 0, startY = 0;
     var frame = document.getElementById('diagramFrame');
     var inner = document.getElementById('diagramInner');
+    var _fabGroup = document.getElementById('fabGroup');
+    var _fabHome  = _fabGroup ? _fabGroup.parentNode : null;
+    function relocateFabsForFullscreen(active) {
+      if (!_fabGroup) return;
+      var pe = document.getElementById('popupEdit');
+      var editItem = pe ? pe.closest('.fab-item') : null;
+      if (active) {
+        frame.appendChild(_fabGroup);
+        if (editItem) editItem.style.display = 'none';
+      } else {
+        if (_fabHome) _fabHome.appendChild(_fabGroup);
+        if (editItem) editItem.style.display = '';
+      }
+    }
 
     // Pinch tracking: map of pointerId → {x, y}
     var activePointers = {};
@@ -1016,7 +1138,7 @@
     }, { passive: false });
 
     frame.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('.diagram-controls')) return;
+      if (e.target.closest('.diagram-controls') || e.target.closest('.hint-chip')) return;
       frame.setPointerCapture(e.pointerId);
       activePointers[e.pointerId] = { x: e.clientX, y: e.clientY };
       if (_pointerCount() === 2) {
@@ -1101,8 +1223,8 @@
         exitBtn.style.display = 'none';
       }
     }
-    document.addEventListener('fullscreenchange',        function () { syncFullscreenUI(!!document.fullscreenElement); });
-    document.addEventListener('webkitfullscreenchange',  function () { syncFullscreenUI(!!document.webkitFullscreenElement); });
+    document.addEventListener('fullscreenchange',        function () { var a = !!document.fullscreenElement; syncFullscreenUI(a); relocateFabsForFullscreen(a); });
+    document.addEventListener('webkitfullscreenchange',  function () { var a = !!document.webkitFullscreenElement; syncFullscreenUI(a); relocateFabsForFullscreen(a); });
 
     // F key shortcut for fullscreen
     document.addEventListener('keydown', function (e) {

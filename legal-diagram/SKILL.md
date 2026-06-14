@@ -11,7 +11,13 @@ Standalone skill: turn legal material into a context-appropriate Mermaid diagram
 
 ## Routing gate
 
-Every real diagram request runs in this fixed order: first-run check, ingest, build-mode gate, generate, report gate. Non-diagram intents short-circuit at Step 0. Three human gates present as a structured choice when the host assistant supports one, otherwise a numbered list in plain text; never free-text prompts. Stop and wait for the reply at each. The gates are GATE 0 (tutorial offer), GATE A (build mode), GATE B (HTML report).
+Every real diagram request runs in this fixed order: first-run check, ingest, build-mode gate, generate, report gate. Non-diagram intents short-circuit at Step 0.
+
+Three human gates = mandatory hard stops: GATE 0 (tutorial offer), GATE A (build mode), GATE B (HTML report). Gate discipline, no exceptions:
+
+- Present each as structured choice (the question tool). No such tool → numbered plain-text list. Either way, STOP, wait for reply.
+- Never skip a gate. Never infer its answer from wording. Never generate past an unanswered gate. Detailed, specific, or named-diagram request = still a request, not a gate answer.
+- Only a literal typed flag may pre-answer: `--direct`/`--guided` (GATE A), `--html` (GATE B), `--tutorial` (tutorial). Nothing else counts.
 
 ### Step 0 — Intent and first-run
 
@@ -24,28 +30,31 @@ Otherwise this is a real diagram request (a file, pasted text, or a matter descr
 
 Run `python scripts/first_run.py`. Parse `{state}`: `returning`, `first_run`, or `unknown`. Script absent, non-zero exit, or no JSON → treat as `unknown`.
 
-- `first_run` → **GATE 0** (structured choice): "First time here. Want a quick tutorial, or go straight to your diagram?" Options: **Start tutorial** (recommended, list first) / **Skip, straight to my diagram**. After the user answers, run `python scripts/first_run.py --mark` to consume the flag. Then: tutorial → load `workflows/tutorial.md`, stop; skip → continue to Step 1.
-- `returning` → no offer. Continue to Step 1.
-- `unknown` → no prompt (ephemeral or no persistent disk; do not nag every session). Continue to Step 1. Tutorial stays reachable by keyword.
+- `returning` (confirmed) → no offer; user ran skill before. Continue to Step 1.
+- `first_run`, `unknown`, or anything not a confirmed `returning` → **GATE 0** (hard stop): "First time here. Want a quick tutorial, or go straight to your diagram?" Options: **Start tutorial** (recommended, list first) / **Skip, straight to my diagram**. Present as structured choice, or numbered plain-text list if host has no choice tool, then STOP, wait for reply. After answer, run `python scripts/first_run.py --mark` to record offer (best-effort; on `unknown` state with no writable disk, mark may not persist, fine). Then: tutorial → load `workflows/tutorial.md`, stop; skip → continue to Step 1.
+
+`unknown` defaults to offering, not suppressing: surface the choice, do not decide for user. Suppress only on confirmed `returning`. Tutorial stays reachable any time by keyword.
 
 ### Step 1 — Ingest before choosing a lane
 
 Detect input: file path, pasted text, or conversation/matter description. Load `shared/setup-check.md` (session-cached).
 
-**Multi-file scope** (2+ files, user did not state scope): structured choice before ingesting, **One combined diagram** / **One per document**. Store `diagram_scope`. Single file or stated scope → skip.
+**Multi-file scope gate** (2+ files) ⛔: mandatory hard stop unless user already stated scope. Present as structured choice, or numbered plain-text list if host has no choice tool, then STOP, wait for reply. Options: **One combined diagram** / **One per document**. Never infer scope from wording. Store `diagram_scope`. Single file, or scope user explicitly stated → skip.
 
 Run Pass 1 only (deterministic manifest, no LLM): `workflows/extract.md` Steps 0-2. Store the result as `manifest_cache` and pass it to the chosen lane so Pass 1 never re-runs. Matter-description-only input (no docs) has no Pass 1 counts; proceed without them.
 
 ### Step 2 — GATE A: build mode (after ingestion) ⛔ BLOCKING
 
-**Explicit flag answers the gate.** The user typing `--direct` or `--guided` is the recorded gate answer, carried in advance; skip the gate prompt, state the resolved mode in one line ("Build mode: direct (flag)"), and load the lane. This is an answer-carrier, not a bypass.
+GATE A = mandatory hard stop. ALWAYS fires unless user typed a literal `--direct` or `--guided` flag. Do not load a lane and do not generate any diagram until GATE A answered.
 
-**No flag → present the structured choice.** Lead with what Pass 1 found, in plain language: "Found [N parties, M events, ...]. How should I build it?" (omit counts for no-docs input). Options:
+**Only a literal flag pre-answers.** Sole answer-carrier = exact token `--direct` or `--guided` in user's message. Present → state resolved mode in one line ("Build mode: direct (flag)") and load the lane. User's own recorded choice, not a model decision.
+
+**Everything else → present the gate and STOP.** Detailed, specific, or named-diagram request ("comprehensive diagram of this exact case", "make an org chart") = a request, NOT a gate answer. Never infer build mode from wording. Lead with what Pass 1 found, plain language: "Found [N parties, M events, ...]. How should I build it?" (omit counts for no-docs input). Present as structured choice, or numbered plain-text list if host has no choice tool, then wait for reply. Options, fixed order:
 
 - **Guided, step by step**
 - **Direct, just make it**
 
-Smart preselect from phrasing only, list the implied option first: "just make it", "quick", or a named diagram type → Direct first; "step by step", "build it with me", or no fast signal → Guided first. Phrasing is inference, never an answer; without an explicit flag the gate always shows and the user confirms or switches.
+Do not reorder options, do not mark one implied from wording. Order fixed; choice is user's.
 
 On choice: load `workflows/direct.md` or `workflows/guided.md`, passing `manifest_cache`, `input_source`, and `diagram_scope`. Both lanes share `workflows/generation.md` for the build; GATE B (HTML report) fires there.
 
@@ -63,6 +72,8 @@ All script commands run from the skill root (the folder containing this `SKILL.m
 | `scripts/first_run.py`        | First-run state → `{state}` (`returning`/`first_run`/`unknown`); `--mark` consumes flag |
 | `scripts/extract_entities.py` | Orchestrator: normalize → detect → manifest JSON                                        |
 | `scripts/diagram_selector.py` | Enriched extraction + intent → recommended type                                         |
+| `scripts/patch_gate.py`       | Pass 2 patch gate: validates and applies LLM JSON Patch → `{ok, findings[], enriched_extraction_result}` |
+| `scripts/eval_pass2.py`       | Pass 2 eval grader: scores LLM patch against label expectations → `{ok, results[], score}` |
 | `scripts/render_html.py`      | Mermaid + FigureDescription → standalone HTML                                           |
 
 `scripts/normalize/` (format adapters) and `scripts/extraction/` (candidate harvesters, resolver, and materializer) are libraries used by the orchestrator. Install deps once: `pip install -r requirements.txt -c constraints.txt` for release-verified versions, or omit `-c constraints.txt` for broad compatibility testing.
@@ -76,6 +87,7 @@ All script commands run from the skill root (the folder containing this `SKILL.m
 | Power-user lane (read all signals, hard cap 1)               | `workflows/direct.md`      |
 | Shared generation core (select → guard → generate → deliver) | `workflows/generation.md`  |
 | Two-pass extraction (called by both lanes)                   | `workflows/extract.md`     |
+| Pass 2 quality eval (execute enrichment, grade against labels) | `workflows/eval-pass2.md`  |
 | No-docs intake sets + delivery pattern                       | `shared/elicitation.md`    |
 | Standalone HTML figure export                                | `workflows/html-export.md` |
 
@@ -92,7 +104,7 @@ All script commands run from the skill root (the folder containing this `SKILL.m
 
 ## Output
 
-Output is chat or terminal display only: the fenced Mermaid block renders in a Mermaid-capable chat or Markdown viewer, and as syntax-highlighted code in a terminal. No note is written to disk. After the block, GATE B offers an HTML report as a structured choice; the export escapes matter text, runs Mermaid in strict mode, uses vendored Mermaid when present, and loads the pinned CDN fallback only when explicitly enabled. Full output rules: `workflows/generation.md` § Step 5.
+Output is CLI display only: the fenced Mermaid block renders as an artifact in the Claude web app and as syntax-highlighted code in the CLI. No note file is written. After the block, GATE B offers an HTML report as a selectable choice; the export escapes matter text, runs Mermaid in strict mode, uses vendored Mermaid when present, and loads the pinned CDN fallback only when explicitly enabled. Full output rules: `workflows/generation.md` § Step 5.
 
 ## Boundaries
 

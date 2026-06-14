@@ -6,20 +6,20 @@
   },
   "fields": {
     "parties": [
-      "Pinecrest Digital Services Inc.",
+      "Example Digital Services Inc.",
       "Example Payments Corp.",
       "Stacklayer Cloud Inc.",
       "Insightful Analytics Ltd.",
       "Meridian Support Systems Inc."
     ],
     "obligations": [
-      "Pinecrest Digital Services Inc. shall respond to access/correction/deletion requests within 30 days",
-      "Pinecrest Digital Services Inc. shall notify the Office of the Privacy Commissioner of Canada within 72 hours of a reportable breach",
+      "Example Digital Services Inc. shall respond to access/correction/deletion requests within 30 days",
+      "Example Digital Services Inc. shall notify the Office of the Privacy Commissioner of Canada within 72 hours of a reportable breach",
       "Users must expressly consent to collection for marketing communications",
       "Employees must complete annual privacy training",
-      "Pinecrest Digital Services Inc. shall conduct annual penetration testing",
+      "Example Digital Services Inc. shall conduct annual penetration testing",
       "Employees with access to personal information are required to complete privacy training annually and are subject to confidentiality agreements",
-      "Pinecrest Digital Services Inc. maintains an incident response plan requiring notification to the Office of the Privacy Commissioner of Canada within 72 hours of discovery of a reportable breach"
+      "Example Digital Services Inc. maintains an incident response plan requiring notification to the Office of the Privacy Commissioner of Canada within 72 hours of discovery of a reportable breach"
     ],
     "controls": [
       "role-based access controls and multi-factor authentication",
@@ -30,10 +30,10 @@
       "Employees with access to personal information are required to complete privacy training annually and are subject to confidentiality agreements"
     ],
     "data_flows": [
-      "Pinecrest Digital Services Inc. to Example Payments Corp. (payment data)",
-      "Pinecrest Digital Services Inc. to Stacklayer Cloud Inc. (platform infrastructure and database)",
-      "Pinecrest Digital Services Inc. to Insightful Analytics Ltd. (pseudonymised usage data)",
-      "Pinecrest Digital Services Inc. to Meridian Support Systems Inc. (communications data)",
+      "Example Digital Services Inc. to Example Payments Corp. (payment data)",
+      "Example Digital Services Inc. to Stacklayer Cloud Inc. (platform infrastructure and database)",
+      "Example Digital Services Inc. to Insightful Analytics Ltd. (pseudonymised usage data)",
+      "Example Digital Services Inc. to Meridian Support Systems Inc. (communications data)",
       "Stacklayer Cloud Inc. disaster recovery transfer to United States facilities"
     ],
     "legal_authorities": [

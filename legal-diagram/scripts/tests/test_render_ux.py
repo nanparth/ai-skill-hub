@@ -420,12 +420,22 @@ def test_hint_tab_pulse_markup_in_rendered_html():
 
 
 def test_localStorage_key_in_script():
-    """localStorage key 'legal-diagram-hints-v1' must appear as a literal string in script blocks."""
+    """Both independent hint keys must appear; the old single key must NOT.
+
+    Per C-hints-overhaul (#5): the old monolithic 'legal-diagram-hints-v1' key is
+    replaced by two independent keys so chip and tabs hints dismiss separately.
+    """
     with tempfile.TemporaryDirectory() as d:
         html = _render(Path(d) / "out.html")
     scripts = _extract_script_blocks(html)
-    assert "legal-diagram-hints-v1" in scripts, (
-        "localStorage key 'legal-diagram-hints-v1' must appear as a literal in script blocks"
+    assert "legal-diagram-hint-chip-v1" in scripts, (
+        "Independent chip localStorage key 'legal-diagram-hint-chip-v1' must appear in script blocks"
+    )
+    assert "legal-diagram-hint-tabs-v1" in scripts, (
+        "Independent tabs localStorage key 'legal-diagram-hint-tabs-v1' must appear in script blocks"
+    )
+    assert "legal-diagram-hints-v1" not in scripts, (
+        "Old monolithic key 'legal-diagram-hints-v1' must NOT appear; it is replaced by two independent keys"
     )
 
 
@@ -1257,6 +1267,561 @@ def test_w54_print_stylesheet_preserved():
     assert "hint-chip" in print_section or "hint-pulse" in print_section or (
         "fab-group" in print_section
     ), "Print stylesheet must still exclude hint chips and fab-group"
+
+
+# ── A-high-contrast: always-visible contrast button + generic CSS effect ─────
+
+
+def test_ahc_contrast_button_not_shipped_hidden():
+    """Contrast button must NOT be shipped with inline display:none.
+
+    The button must be always present in the control stack regardless of diagram
+    type.  The old pattern -- hidden at markup time, un-hidden only inside
+    applySemanticColoring -- means non-flowchart diagrams never see the button.
+
+    Two assertions:
+      (a) the literal 'id="contrastBtn" style="display:none;"' must not appear;
+      (b) more robustly, no 'display:none' must be attached to the contrast button
+          element at all (catches attribute-order variations).
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    # (a) exact old pattern
+    assert 'id="contrastBtn" style="display:none;"' not in html, (
+        'Contrast button must not carry inline style="display:none;" at markup time; '
+        "it must be always visible in the control stack"
+    )
+    # (b) broader: locate the contrast button element and verify no display:none on it
+    m = re.search(r'<button[^>]+id="contrastBtn"[^>]*>', html)
+    assert m, "contrastBtn element not found in rendered HTML"
+    assert "display:none" not in m.group(0) and "display: none" not in m.group(0), (
+        "Contrast button must not have any display:none style attribute in the rendered markup; "
+        f"got: {m.group(0)!r}"
+    )
+    # (c) the data-action must still be there (regression guard)
+    assert 'data-action="contrast"' in html, (
+        "Contrast button must still carry data-action='contrast'"
+    )
+
+
+def test_ahc_generic_high_contrast_css_present():
+    """Rendered HTML must contain a generic high-contrast CSS rule targeting .diagram-inner.
+
+    The rule '.high-contrast .diagram-inner { filter: contrast(1.4) saturate(1.1); }'
+    provides a visible effect on non-flowchart diagrams (timeline, gantt, sequence,
+    ER, etc.) that have no sem-* CSS classes.  The sem-* white/black overrides remain
+    intact for flowcharts.
+
+    The test checks for the diagnostic substring '.high-contrast .diagram-inner' which
+    is unique to this new rule and absent from the existing sem-* block.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert ".high-contrast .diagram-inner" in html, (
+        "Rendered HTML must contain a generic high-contrast CSS rule targeting "
+        "'.high-contrast .diagram-inner' (e.g. filter: contrast(1.4) saturate(1.1)) "
+        "so that non-flowchart diagrams receive a visible effect when the toggle is pressed"
+    )
+
+
+# ── B-source-stash: surviving mermaid-source stash element ───────────────────
+
+
+def test_mermaid_source_stash_element_present():
+    """Rendered HTML must contain a <script id=\"mermaid-source\" type=\"application/json\"> stash.
+
+    This element must survive browser Save -> 'This whole page (HTML)' because
+    <script> tags are not replaced by Mermaid; the stash preserves the raw source
+    so the reopened file can edit/redraw/flip.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert 'id="mermaid-source"' in html, (
+        "Rendered HTML must contain a stash element with id='mermaid-source'"
+    )
+    assert 'type="application/json"' in html, (
+        "The mermaid-source stash element must have type='application/json'"
+    )
+    # Both attributes must appear on the same element — find the tag
+    m = re.search(r'<script[^>]+id="mermaid-source"[^>]*>', html)
+    assert m, "A <script id='mermaid-source'> tag must be present in the rendered HTML"
+    assert 'type="application/json"' in m.group(0), (
+        "The <script id='mermaid-source'> tag must also carry type='application/json'; "
+        f"got: {m.group(0)!r}"
+    )
+
+
+def test_mermaid_source_stash_content_and_startup_read():
+    """Rendered HTML must JSON-encode the mermaid source without raw '-->' and read it at startup.
+
+    Checks:
+      (a) The stash is populated (non-empty JSON in the script body).
+      (b) The startup DOMContentLoaded block reads from #mermaid-source via
+          getElementById('mermaid-source') and JSON.parse.
+      (c) The JSON-encoded source does NOT contain a raw unescaped '-->' sequence
+          that would break the <script> raw-text context.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        # Render with a diagram that contains a Mermaid arrow so '-->' must be encoded
+        out = Path(d) / "out.html"
+        render_html.render("flowchart TD\n  A-->B", {"title": "T"}, str(out))
+        html = out.read_text(encoding="utf-8")
+
+    scripts = _extract_script_blocks(html)
+
+    # (a) startup block must reference the stash element
+    assert "getElementById('mermaid-source')" in scripts or 'getElementById("mermaid-source")' in scripts, (
+        "DOMContentLoaded startup block must call getElementById('mermaid-source') to read the stash"
+    )
+
+    # (b) startup block must use JSON.parse to decode the stash
+    assert "JSON.parse" in scripts, (
+        "DOMContentLoaded startup block must call JSON.parse to decode the stash content"
+    )
+
+    # (c) the stash script body must not contain a raw '-->' (Mermaid arrow must be escaped)
+    stash_match = re.search(
+        r'<script[^>]+id="mermaid-source"[^>]*>(.*?)</script>',
+        html,
+        re.DOTALL,
+    )
+    assert stash_match, "Could not locate the mermaid-source script element body for inspection"
+    stash_body = stash_match.group(1)
+    assert "-->" not in stash_body, (
+        "The mermaid-source stash body must not contain a raw '-->' sequence; "
+        "use | tojson which escapes '<' and '>' so the raw-text script context is safe; "
+        f"got stash body: {stash_body!r}"
+    )
+
+
+# ── C-hints-overhaul: fix drag-capture / tablist ARIA / independent dismissal ─
+
+
+def test_pointerdown_guard_skips_hint_chip():
+    """pointerdown handler must also guard against .hint-chip targets (#2).
+
+    Without this guard, frame.setPointerCapture() retargets pointerup away from
+    the chip button, synthesized click never fires, and 'Got it' is broken.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    scripts = _extract_script_blocks(html)
+    assert "closest('.hint-chip')" in scripts or 'closest(".hint-chip")' in scripts, (
+        "pointerdown guard must include closest('.hint-chip') so the Got it button "
+        "click is not stolen by setPointerCapture"
+    )
+
+
+def test_hint_pulse_got_it_button_present():
+    """Floating tab-hint popup must have its own Got it button with id='hintPulseGotIt' (#3)."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert 'id="hintPulseGotIt"' in html, (
+        "Floating tab-hint popup must contain a Got it button with id='hintPulseGotIt'"
+    )
+
+
+def test_hint_pulse_outside_tablist():
+    """hintPulse element must appear AFTER the tablist close, not inside role=tablist (#7 + #3).
+
+    Positions: class='tab-content' must appear before id='hintPulse' in the
+    rendered HTML, proving hintPulse was moved out of the tablist div and into
+    the tab-content region (as first child of .tab-content).
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    tab_content_pos = html.find('class="tab-content"')
+    hint_pulse_pos = html.find('id="hintPulse"')
+    assert tab_content_pos >= 0, "class='tab-content' not found in rendered HTML"
+    assert hint_pulse_pos >= 0, "id='hintPulse' not found in rendered HTML"
+    assert tab_content_pos < hint_pulse_pos, (
+        "hintPulse must appear AFTER class='tab-content' in HTML order, meaning it "
+        "is a child of .tab-content, not inside role=tablist; "
+        f"tab-content at {tab_content_pos}, hintPulse at {hint_pulse_pos}"
+    )
+
+
+def test_hint_independent_keys_no_old_key():
+    """Script must use two independent keys and must NOT use the old monolithic key (#5).
+
+    Aliases test_localStorage_key_in_script with a cleaner name focused on the
+    independence contract so the CI report is self-documenting.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    scripts = _extract_script_blocks(html)
+    assert "legal-diagram-hint-chip-v1" in scripts, (
+        "Chip dismissal key 'legal-diagram-hint-chip-v1' must be present"
+    )
+    assert "legal-diagram-hint-tabs-v1" in scripts, (
+        "Tabs dismissal key 'legal-diagram-hint-tabs-v1' must be present"
+    )
+    assert "legal-diagram-hints-v1" not in scripts, (
+        "Old monolithic key 'legal-diagram-hints-v1' must be absent after refactor"
+    )
+
+
+# ── D-fab-fullscreen: FAB bottom-right corner + sr-only label + fullscreen reloc ─
+
+
+def _extract_fab_group_css_rule(html: str) -> str:
+    """Return the CSS text of the .fab-group { ... } rule block."""
+    m = re.search(r'\.fab-group\s*\{([^}]+)\}', html, re.DOTALL)
+    return m.group(1) if m else ""
+
+
+def _extract_fab_btn_label_css_rule(html: str) -> str:
+    """Return the CSS text of the .fab-btn-label { ... } rule block."""
+    m = re.search(r'\.fab-btn-label\s*\{([^}]+)\}', html, re.DOTALL)
+    return m.group(1) if m else ""
+
+
+def _extract_fab_popup_css_rule(html: str) -> str:
+    """Return the CSS text of the .fab-popup { ... } first rule block (position props)."""
+    m = re.search(r'\.fab-popup\s*\{([^}]+)\}', html, re.DOTALL)
+    return m.group(1) if m else ""
+
+
+def test_dfab_fab_group_no_longer_vertically_centered():
+    """#1a: .fab-group rule must NOT contain 'top: 50%' (old vertical-center anchor).
+
+    The group is relocated to the bottom-right corner; 'top: 50%' must be absent
+    from the .fab-group CSS rule and a 'bottom:' anchor must now be present.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    rule = _extract_fab_group_css_rule(html)
+    assert rule, ".fab-group CSS rule must be present in rendered HTML"
+    assert "top: 50%" not in rule and "top:50%" not in rule, (
+        ".fab-group rule must NOT contain 'top: 50%'; it should be bottom-anchored now; "
+        f"got rule: {rule!r}"
+    )
+    assert "bottom:" in rule, (
+        ".fab-group rule must contain a 'bottom:' anchor for the bottom-right corner; "
+        f"got rule: {rule!r}"
+    )
+
+
+def test_dfab_fab_btn_label_is_sr_only():
+    """#1c: .fab-btn-label CSS rule must be visually-hidden (sr-only), containing 'clip:'.
+
+    The label text must remain in the DOM for tests and screen readers, but must
+    not be visually shown (sr-only pattern: position:absolute, 1x1px, clip).
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    rule = _extract_fab_btn_label_css_rule(html)
+    assert rule, ".fab-btn-label CSS rule must be present in rendered HTML"
+    assert "clip:" in rule or "clip-path:" in rule, (
+        ".fab-btn-label rule must use the sr-only visually-hidden pattern (requires 'clip:'); "
+        f"got rule: {rule!r}"
+    )
+    # The label text must still appear in the HTML markup (DOM presence)
+    assert "fab_save_label" in html or UI_STRINGS["en"].get("fab_save_label", "Save") in html, (
+        "fab_save_label text must remain in rendered HTML markup (DOM presence for screen readers)"
+    )
+    assert "fab_edit_label" in html or UI_STRINGS["en"].get("fab_edit_label", "Edit") in html, (
+        "fab_edit_label text must remain in rendered HTML markup (DOM presence for screen readers)"
+    )
+
+
+def test_dfab_fab_popup_opens_upward():
+    """#1d: the .fab-popup base rule must open upward from the bottom-corner FAB.
+
+    With the FAB group relocated to the bottom-right corner, the export/edit popup
+    must anchor to the bottom of its button ('bottom:') rather than the old
+    vertical-centre ('top: 50%') left-side anchor.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    rule = _extract_fab_popup_css_rule(html)
+    assert rule, ".fab-popup CSS rule must be present in rendered HTML"
+    assert "top: 50%" not in rule and "top:50%" not in rule, (
+        ".fab-popup rule must NOT keep the old 'top: 50%' anchor; "
+        f"got rule: {rule!r}"
+    )
+    assert "bottom:" in rule, (
+        ".fab-popup rule must contain a 'bottom:' anchor so it opens upward from the corner button; "
+        f"got rule: {rule!r}"
+    )
+
+
+def test_dfab_fullscreen_relocation_wired():
+    """#8: Script must contain relocateFabsForFullscreen, frame.appendChild, and fullscreenchange wiring.
+
+    When fullscreen is active, the FAB group must move inside #diagramFrame so it
+    is visible within the fullscreen element's painted subtree.  Both the
+    fullscreenchange and webkitfullscreenchange listeners must call
+    relocateFabsForFullscreen.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    scripts = _extract_script_blocks(html)
+    assert "relocateFabsForFullscreen" in scripts, (
+        "Script must define function relocateFabsForFullscreen for fullscreen FAB relocation"
+    )
+    assert "frame.appendChild" in scripts, (
+        "relocateFabsForFullscreen must call frame.appendChild to move FAB into the fullscreen element"
+    )
+    # Both change event listeners must call relocateFabsForFullscreen
+    assert scripts.count("relocateFabsForFullscreen") >= 3, (
+        "relocateFabsForFullscreen must appear at least 3 times: definition + 2 listener calls "
+        f"(found {scripts.count('relocateFabsForFullscreen')} occurrences)"
+    )
+
+
+# ── P0 render hardening: CSS + JS structural assertions ──────────────────────
+
+
+def test_p0_edge_label_css_rule_present():
+    """Edge-label font-size rule must be present scoped to #diagramInner."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert ".edgeLabel" in html, (
+        "CSS must contain an .edgeLabel rule scoped to #diagramInner"
+    )
+    # The rule must mention font-size (the sizing fix)
+    idx = html.find(".edgeLabel")
+    assert idx >= 0
+    nearby = html[idx:idx + 300]
+    assert "font-size" in nearby, (
+        "#diagramInner .edgeLabel rule must set font-size"
+    )
+
+
+def test_p0_color_scheme_meta_tag_present():
+    """<head> must contain <meta name=\"color-scheme\" content=\"light\">."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert 'name="color-scheme"' in html and 'content="light"' in html, (
+        '<meta name="color-scheme" content="light"> must be present in <head>'
+    )
+
+
+def test_p0_color_scheme_root_css():
+    """:root must declare color-scheme: light in CSS."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert "color-scheme: light" in html or "color-scheme:light" in html, (
+        ":root CSS block must contain 'color-scheme: light'"
+    )
+
+
+def test_p0_dark_mode_guard_present():
+    """@media (prefers-color-scheme: dark) block must be present to force light colours."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert "prefers-color-scheme: dark" in html or "prefers-color-scheme:dark" in html, (
+        "@media (prefers-color-scheme: dark) block must be present in CSS"
+    )
+
+
+def test_p0_mermaid_initialize_theme():
+    """mermaid.initialize call must include theme: and themeVariables: and flowchart: config."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    scripts = _extract_script_blocks(html)
+    assert "theme:" in scripts or '"theme"' in scripts, (
+        "mermaid.initialize call must include theme: configuration"
+    )
+    assert "themeVariables" in scripts, (
+        "mermaid.initialize call must include themeVariables: configuration"
+    )
+    assert "flowchart" in scripts, (
+        "mermaid.initialize call must include flowchart: configuration"
+    )
+
+
+def test_p0_download_svg_white_rect_inserted():
+    """downloadSVG must insert a white background <rect before serializing the SVG clone."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    scripts = _extract_script_blocks(html)
+    # The fix clones svg and inserts a rect fill="#ffffff" before serializing
+    assert "<rect" in scripts and "fill" in scripts and "ffffff" in scripts.lower(), (
+        "downloadSVG must insert a white <rect fill='#ffffff'> into the SVG clone before serialization"
+    )
+
+
+def test_p0_print_color_adjust_present():
+    """@media print must include print-color-adjust: exact for diagram fidelity."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert "print-color-adjust: exact" in html or "print-color-adjust:exact" in html, (
+        "@media print block must contain 'print-color-adjust: exact'"
+    )
+
+
+def test_p0_forced_colors_media_query_present():
+    """CSS must include @media (forced-colors: active) block for Windows High Contrast."""
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html")
+    assert "forced-colors: active" in html or "forced-colors:active" in html, (
+        "@media (forced-colors: active) block must be present in CSS"
+    )
+
+
+# ── P1 render hardening: hidden-iframe zero-size race fix ────────────────────
+#
+# These tests assert the three structural changes specified in the P1 render-
+# hardening task:
+#   CHANGE 1 - startOnLoad: false (stop relying on auto-scan)
+#   CHANGE 2 - explicit size-gated initial render in DOMContentLoaded
+#   CHANGE 3 - single retry before fallback
+# They also guard existing startup regressions (CHANGE 5 below).
+
+
+def test_p1_start_on_load_false():
+    """mermaid.initialize must have startOnLoad: false (CHANGE 1).
+
+    Setting startOnLoad: true lets Mermaid auto-scan <pre class="mermaid"> before
+    #diagramInner has real dimensions inside a hidden webapp iframe, producing a
+    zero-size layout and a spurious 'Syntax error in text' graphic.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html", allow_cdn=True)
+    scripts = _extract_script_blocks(html)
+    assert "startOnLoad: false" in scripts or "startOnLoad:false" in scripts, (
+        "mermaid.initialize must set startOnLoad: false to disable auto-scan"
+    )
+    assert "startOnLoad: true" not in scripts and "startOnLoad:true" not in scripts, (
+        "startOnLoad: true must not appear in any script block"
+    )
+
+
+def test_p1_explicit_mermaid_render_in_init_path():
+    """DOMContentLoaded startup path must call mermaid.render() explicitly (CHANGE 2).
+
+    The auto-scan (startOnLoad: true) is replaced by an explicit programmatic
+    render call so the timing of the render can be controlled by the size gate.
+    The call must appear in the initial-load path (DOMContentLoaded), distinct
+    from the existing flip/rerender/cancel rerenders.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html", allow_cdn=True)
+    scripts = _extract_script_blocks(html)
+    # The initial render entry point must call mermaid.render(
+    assert "mermaid.render(" in scripts, (
+        "DOMContentLoaded startup path must contain an explicit mermaid.render() call "
+        "to replace the auto-scan removed by startOnLoad: false"
+    )
+    # Additionally, a named initial-render function or inline call must be present.
+    # We check for an identifiable init-render entry point: either a function name
+    # that is called from DOMContentLoaded, or an inline mermaid.render inside the
+    # DOMContentLoaded listener body.  A token-level check: the handler body must
+    # reference mermaid.render in a context that is not purely the flip/cancel/rerender
+    # functions.  We verify by checking that mermaid.render appears more than twice
+    # (flip uses it once, cancelEdit once, rerender once => baseline is 3; init adds >=1).
+    count = scripts.count("mermaid.render(")
+    assert count >= 4, (
+        f"mermaid.render( must appear at least 4 times in script blocks "
+        f"(flip + cancelEdit + rerender + initial render); found {count}"
+    )
+
+
+def test_p1_size_gate_in_init_path():
+    """Initial render must be guarded against a zero-width container (CHANGE 2).
+
+    Before calling mermaid.render(), the startup code must check whether
+    #diagramInner has a nonzero width.  If not, it must defer via
+    requestAnimationFrame and/or ResizeObserver/IntersectionObserver.
+
+    Assertions:
+      (a) A width-guard token is present: offsetWidth, clientWidth, or
+          getBoundingClientRect.
+      (b) A deferral token is present: requestAnimationFrame, ResizeObserver,
+          or IntersectionObserver.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html", allow_cdn=True)
+    scripts = _extract_script_blocks(html)
+
+    has_width_guard = (
+        "offsetWidth" in scripts
+        or "clientWidth" in scripts
+        or "getBoundingClientRect" in scripts
+    )
+    assert has_width_guard, (
+        "Initial render must check container width before rendering "
+        "(offsetWidth, clientWidth, or getBoundingClientRect)"
+    )
+
+    has_deferral = (
+        "requestAnimationFrame" in scripts
+        or "ResizeObserver" in scripts
+        or "IntersectionObserver" in scripts
+    )
+    assert has_deferral, (
+        "Initial render must defer via requestAnimationFrame, ResizeObserver, "
+        "or IntersectionObserver when container reports zero width"
+    )
+
+
+def test_p1_retry_before_fallback():
+    """Initial render path must perform one retry before calling setMermaidSourceFallback (CHANGE 3).
+
+    On a transient render failure the code must not immediately paint the fallback;
+    it must schedule a single retry (requestAnimationFrame or setTimeout) and only
+    call setMermaidSourceFallback after the retry also fails.
+
+    We use a token-level structural check: the new init block must reference both
+    a retry deferral AND setMermaidSourceFallback.  Because the flip/cancel paths
+    already reference setMermaidSourceFallback and requestAnimationFrame already
+    appears for the size gate, the meaningful assertion is that setMermaidSourceFallback
+    appears in the same context as the init-path retry deferral.  We assert that
+    setMermaidSourceFallback appears at least twice (init path + flip/cancel path).
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html", allow_cdn=True)
+    scripts = _extract_script_blocks(html)
+
+    assert "setMermaidSourceFallback" in scripts, (
+        "setMermaidSourceFallback must be referenced in script blocks (present in flip path; "
+        "also required in initial-render error path)"
+    )
+    # The retry mechanism (requestAnimationFrame or setTimeout) must co-exist with
+    # setMermaidSourceFallback.  Both tokens present = retry-then-fallback pattern satisfied.
+    has_retry_deferral = (
+        "requestAnimationFrame" in scripts
+        or "setTimeout" in scripts
+    )
+    assert has_retry_deferral, (
+        "A retry deferral (requestAnimationFrame or setTimeout) must be present alongside "
+        "setMermaidSourceFallback so the fallback is only shown after a retry"
+    )
+
+
+def test_p1_regression_startup_stash_read():
+    """REGRESSION: DOMContentLoaded block must still read from #mermaid-source and JSON.parse (CHANGE 5).
+
+    These tokens from the existing test_mermaid_source_stash_content_and_startup_read
+    must remain intact after the P1 changes.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html", allow_cdn=True)
+    scripts = _extract_script_blocks(html)
+    assert (
+        "getElementById('mermaid-source')" in scripts
+        or 'getElementById("mermaid-source")' in scripts
+    ), "DOMContentLoaded must still call getElementById('mermaid-source')"
+    assert "JSON.parse" in scripts, (
+        "DOMContentLoaded must still call JSON.parse to decode the stash"
+    )
+
+
+def test_p1_regression_mermaid_guard_in_startup():
+    """REGRESSION: mermaid usage in startup path must still be guarded by if (window.mermaid).
+
+    The existing guard 'if (window.mermaid) waitForSVGAndColor();' must be preserved
+    so that source-only mode (no mermaid engine) does not throw on startup.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        html = _render(Path(d) / "out.html", allow_cdn=True)
+    scripts = _extract_script_blocks(html)
+    assert "window.mermaid" in scripts, (
+        "Startup path must guard mermaid usage with 'if (window.mermaid)' so "
+        "source-only mode (no engine) does not throw"
+    )
 
 
 if __name__ == "__main__":

@@ -10,6 +10,15 @@ OPTIONAL = {
     "pdfplumber": {"pip_name": "pdfplumber", "purpose": "PDF tables"},
 }
 
+try:
+    from fetch_mermaid import vendor_status as _vendor_status
+except Exception:
+    def _vendor_status() -> dict:  # type: ignore[misc]
+        from pathlib import Path
+        p = Path(__file__).parent.parent / "assets" / "vendor" / "mermaid.min.js"
+        return {"present": p.exists(), "path": str(p),
+                "hint": "run: python scripts/fetch_mermaid.py to vendor the engine for offline use"}
+
 def check_setup() -> dict:
     installed, missing = [], []
     for import_name, pip_name in REQUIRED.items():
@@ -26,6 +35,7 @@ def check_setup() -> dict:
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "installed": installed, "missing": missing,
         "optional": optional,
+        "mermaid_vendor": _vendor_status(),
     }
 
 if __name__ == "__main__":

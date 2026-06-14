@@ -2,15 +2,15 @@
 
 **Effective Date:** March 1, 2026
 
-**Organization:** Pinecrest Digital Services Inc. ("Pinecrest", "we", "our")
+**Organization:** Example Digital Services Inc. ("Example Digital", "we", "our")
 
-This Privacy Policy describes how Pinecrest Digital Services Inc. collects, uses, discloses,
+This Privacy Policy describes how Example Digital Services Inc. collects, uses, discloses,
 and protects personal information in accordance with the Personal Information Protection and
 Electronic Documents Act, S.C. 2000, c. 5 ("PIPEDA") and applicable provincial privacy laws.
 
 ## Information We Collect
 
-Pinecrest Digital Services Inc. collects the following categories of personal information from
+Example Digital Services Inc. collects the following categories of personal information from
 users of our platform:
 
 - **Account data**: name, email address, password hash, account creation date.
@@ -24,7 +24,7 @@ through automated tracking technologies on our platform.
 
 ## Legal Bases and Consent
 
-Pinecrest Digital Services Inc. relies on the following legal bases for processing personal
+Example Digital Services Inc. relies on the following legal bases for processing personal
 information:
 
 - **Consent**: Users must expressly consent to the collection and use of their personal
@@ -39,18 +39,18 @@ unsubscribe link in any marketing email or by contacting privacy@example.org.
 
 ## How We Use Personal Information
 
-Pinecrest Digital Services Inc. uses collected personal information for the following purposes:
+Example Digital Services Inc. uses collected personal information for the following purposes:
 
 - To create and maintain user accounts and authenticate access.
 - To process payments through our integration with Example Payments Corp.
-- To provide and improve the Pinecrest platform and its features.
+- To provide and improve the Example Digital platform and its features.
 - To send transactional communications such as invoices and service notifications.
 - To send marketing communications where the user has given express consent.
 - To comply with legal obligations under applicable law.
 
 ## Data Flows and Third-Party Transfers
 
-Pinecrest Digital Services Inc. transfers personal information to the following third parties:
+Example Digital Services Inc. transfers personal information to the following third parties:
 
 - **Example Payments Corp.**: receives payment data for payment processing; bound by a data
   processing agreement requiring PCI-DSS compliance.
@@ -67,7 +67,7 @@ protections under cross-border data transfer agreements.
 
 ## Security Controls
 
-Pinecrest Digital Services Inc. maintains the following technical and organizational controls:
+Example Digital Services Inc. maintains the following technical and organizational controls:
 
 - All personal information is encrypted at rest using AES-256 and in transit using TLS 1.3.
 - Access to personal data systems is restricted to authorized personnel and enforced by
@@ -80,7 +80,7 @@ Pinecrest Digital Services Inc. maintains the following technical and organizati
 
 ## Retention
 
-Pinecrest Digital Services Inc. retains personal information only as long as necessary for the
+Example Digital Services Inc. retains personal information only as long as necessary for the
 purposes described in this Policy or as required by applicable law. Account data is retained
 for the duration of the user's account and for 7 years following account closure. Payment
 records are retained for 10 years as required by the Income Tax Act (Canada).
@@ -88,7 +88,7 @@ records are retained for 10 years as required by the Income Tax Act (Canada).
 ## Individual Rights
 
 Users have the right to access, correct, and request deletion of their personal information.
-Requests must be submitted in writing to privacy@example.org. Pinecrest Digital
+Requests must be submitted in writing to privacy@example.org. Example Digital
 Services Inc. shall respond to such requests within 30 days of receipt.
 
 Users have the right to lodge a complaint with the Office of the Privacy Commissioner of
@@ -96,5 +96,5 @@ Canada regarding our privacy practices.
 
 ## Contact
 
-Privacy Officer: Pinecrest Digital Services Inc., 400 Wellington Street West, Suite 600,
-Toronto, Ontario M5V 1E3. Email: privacy@example.org.
+Privacy Officer: Example Digital Services Inc., 100 Example Street, Suite 100,
+Toronto, Ontario A1A 1A1. Email: privacy@example.org.

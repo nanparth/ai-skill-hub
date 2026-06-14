@@ -1,10 +1,21 @@
-import argparse, json, sys
+import argparse, heapq, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from extraction.domain import ExtractionResult
+from extraction.domain import ExtractionResult, ENTITY_FIELDS
 from extraction.utils import strip_diacritics
 
 STATE_DIAGRAM = "stateDiagram-" + "v" + "2"
+
+# Simple pairwise edge fields: (field_attr, src_attr, dst_attr).
+# These five all follow the identical pattern: iterate items, add one directed edge.
+# Kept beside ENTITY_FIELDS / RULES so the field registry stays a single source.
+SIMPLE_EDGE_FIELDS = [
+    ("relationships",   "from_entity", "to_entity"),
+    ("ownership_links", "parent",      "child"),
+    ("transitions",     "from_state",  "to_state"),
+    ("communications",  "from_party",  "to_party"),
+    ("transfers",       "from_party",  "to_party"),
+]
 
 RULES = [
     ("events",             ["timeline", "gantt"],                2.0),
@@ -153,8 +164,394 @@ def _event_text(e):
     return getattr(e, "description", "") or ""
 
 
-def _grouping_decision(r, top, intent_exempt=False):
-    """Phase 1 single-layer grouping: only the dense-timeline path fires.
+def _build_edge_graph(r):
+    """Derive a directed graph from all typed edge-bearing fields in r.
+
+    Returns (nodes: set[str], adjacency: dict[str, list[str]]) where adjacency
+    maps each node to its list of successor nodes.  Every field is optional and
+    guarded with getattr so sparse ExtractionResult objects never raise.
+
+    Single place geometry derives topology (high cohesion).
+    """
+    nodes: set = set()
+    # Use sets internally to deduplicate parallel edges from redundant fields
+    # (e.g. concept.children and child.parent_id both encode the same edge).
+    adj_sets: dict = {}
+
+    def _add_edge(src, dst):
+        if src is None or dst is None:
+            return
+        src, dst = str(src), str(dst)
+        nodes.add(src)
+        nodes.add(dst)
+        adj_sets.setdefault(src, set()).add(dst)
+        adj_sets.setdefault(dst, set())  # ensure dst has an entry
+
+    def _ensure_node(x):
+        # Retains isolated source nodes that may have zero edges.
+        s = str(x)
+        nodes.add(s)
+        adj_sets.setdefault(s, set())
+
+    # Simple pairwise fields: driven by SIMPLE_EDGE_FIELDS table.
+    for attr, s_field, d_field in SIMPLE_EDGE_FIELDS:
+        for item in (getattr(r, attr, None) or []):
+            _add_edge(getattr(item, s_field, None), getattr(item, d_field, None))
+
+    # process_steps: step.id -> each entry in step.next_steps
+    for ps in (getattr(r, "process_steps", None) or []):
+        src = getattr(ps, "id", None)
+        if src is not None:
+            _ensure_node(src)  # preserve isolated steps with no next_steps
+            for nxt in (getattr(ps, "next_steps", None) or []):
+                _add_edge(src, nxt)
+
+    # decision_points: question -> yes_path, question -> no_path
+    for dp in (getattr(r, "decision_points", None) or []):
+        q = getattr(dp, "question", None)
+        _add_edge(q, getattr(dp, "yes_path", None))
+        _add_edge(q, getattr(dp, "no_path", None))
+
+    # concepts: parent_id -> child id; concept id -> each child in children list
+    for con in (getattr(r, "concepts", None) or []):
+        cid = getattr(con, "id", None)
+        if cid is not None:
+            _ensure_node(cid)  # preserve isolated concepts with no edges
+        parent_id = getattr(con, "parent_id", None)
+        if parent_id is not None and cid is not None:
+            _add_edge(parent_id, cid)
+        for child in (getattr(con, "children", None) or []):
+            _add_edge(cid, child)
+
+    # hierarchy entries contribute subgraph breadth (parent -> node)
+    for h in (getattr(r, "hierarchy", None) or []):
+        if isinstance(h, dict):
+            parent = h.get("parent")
+            child = h.get("id") or h.get("name")
+            if parent and child:
+                _add_edge(parent, child)
+
+    # Convert sets to sorted lists for deterministic downstream iteration
+    adj = {k: sorted(v) for k, v in adj_sets.items()}
+    return nodes, adj
+
+
+def _longest_path_layered(adj, nodes):
+    """Compute longest path length and per-layer widths via topological layering.
+
+    Uses Kahn's algorithm for topological sort then assigns each node the layer
+    of max(layer(predecessors)) + 1.  Handles cycles gracefully by skipping
+    nodes that were not processed (in-degree never reached 0).
+
+    Returns (longest_path: int, layer_widths: list[int]).
+    """
+    if not nodes:
+        return 0, []
+
+    # Build in-degree and predecessor maps from adjacency
+    in_degree: dict = {n: 0 for n in nodes}
+    for src, dsts in adj.items():
+        for dst in dsts:
+            if dst in in_degree:
+                in_degree[dst] = in_degree.get(dst, 0) + 1
+
+    layer: dict = {}
+    queue = [n for n in nodes if in_degree.get(n, 0) == 0]
+    for n in queue:
+        layer[n] = 0
+    heapq.heapify(queue)  # min-heap for O((V+E) log V) deterministic processing
+
+    processed = []
+    while queue:
+        n = heapq.heappop(queue)
+        processed.append(n)
+        for dst in adj.get(n, []):  # adj already sorted at construction
+            if dst not in nodes:
+                continue
+            in_degree[dst] -= 1
+            new_layer = layer[n] + 1
+            if layer.get(dst, -1) < new_layer:
+                layer[dst] = new_layer
+            if in_degree[dst] == 0:
+                heapq.heappush(queue, dst)
+
+    if not layer:
+        return 0, []
+
+    max_layer = max(layer.values())
+    widths = [0] * (max_layer + 1)
+    for n, lv in layer.items():
+        widths[lv] += 1
+
+    return max_layer, widths
+
+
+def _graph_metrics(r) -> dict:
+    """Compute topology-only metrics from an ExtractionResult.
+
+    All returned values are independent of recommended diagram type.
+    Expensive work (graph build, topo layering, CC scan) runs once here;
+    callers that need to reclassify for a different type call _classify_geometry
+    with the cached result rather than rebuilding from scratch.
+    """
+    nodes, adj = _build_edge_graph(r)
+    N = len(nodes)
+    E = sum(len(v) for v in adj.values())
+    max_out_degree = max((len(v) for v in adj.values()), default=0)
+
+    longest_path, layer_widths = _longest_path_layered(adj, nodes)
+    est_max_rank_width = max(layer_widths) if layer_widths else 0
+
+    # Subgraph count: weakly-connected components
+    visited: set = set()
+    subgraph_count = 0
+    undirected: dict = {}
+    for src, dsts in adj.items():
+        undirected.setdefault(src, set())
+        for dst in dsts:
+            undirected[src].add(dst)
+            undirected.setdefault(dst, set()).add(src)
+    for n in nodes:
+        undirected.setdefault(n, set())
+    for start in nodes:
+        if start not in visited:
+            subgraph_count += 1
+            stack = [start]
+            while stack:
+                cur = stack.pop()
+                if cur in visited:
+                    continue
+                visited.add(cur)
+                stack.extend(undirected.get(cur, set()) - visited)
+
+    # Max siblings per subgraph: max out-degree within concept hierarchy or adj
+    max_siblings_per_subgraph = max_out_degree
+
+    # Also inspect concept children lists directly for mindmap breadth
+    concept_children_counts = []
+    for con in (getattr(r, "concepts", None) or []):
+        children = getattr(con, "children", None) or []
+        concept_children_counts.append(len(children))
+    if concept_children_counts:
+        max_siblings_per_subgraph = max(max_siblings_per_subgraph, max(concept_children_counts))
+
+    return {
+        "N": N, "E": E,
+        "max_out_degree": max_out_degree,
+        "longest_path": longest_path,
+        "est_max_rank_width": est_max_rank_width,
+        "subgraph_count": subgraph_count,
+        "max_siblings_per_subgraph": max_siblings_per_subgraph,
+        # Preserve raw field references for _classify_geometry's ER/sequence branches.
+        "_r": r,
+    }
+
+
+def _classify_geometry(metrics: dict, recommended_type: str) -> dict:
+    """Classify pre-computed topology metrics against a diagram type's thresholds.
+
+    Accepts the dict returned by _graph_metrics and the target type; returns the
+    full geometry dict (same shape as legacy _geometry).  Separated from
+    _graph_metrics so that recommend() can build the graph once and reclassify
+    cheaply when a grouping override changes the recommended type.
+    """
+    r = metrics["_r"]
+    N = metrics["N"]
+    E = metrics["E"]
+    max_out_degree = metrics["max_out_degree"]
+    longest_path = metrics["longest_path"]
+    est_max_rank_width = metrics["est_max_rank_width"]
+    subgraph_count = metrics["subgraph_count"]
+    max_siblings_per_subgraph = metrics["max_siblings_per_subgraph"]
+
+    triggers: list = []
+    band = "green"
+    action = "ship"
+    split_axis_suggestion = None
+    primary_metric = "est_max_rank_width"
+
+    dtype = (recommended_type or "").lower()
+
+    # -----------------------------------------------------------------------
+    # Flowchart / graph / stateDiagram (breadth-primary)
+    # -----------------------------------------------------------------------
+    if dtype in ("flowchart", "graph", "statediagram-v2", "statediagram"):
+        primary_metric = "est_max_rank_width"
+        if est_max_rank_width >= 8 or max_out_degree >= 13:
+            band = "split"
+            action = "split"
+            if est_max_rank_width >= 8:
+                triggers.append(f"est_max_rank_width={est_max_rank_width} >= 8 (legibility floor)")
+            if max_out_degree >= 13:
+                triggers.append(f"max_out_degree={max_out_degree} >= 13")
+            split_axis_suggestion = "type"
+        elif subgraph_count > 0 and max_siblings_per_subgraph >= 12:
+            band = "split"
+            action = "split"
+            triggers.append(f"max_siblings_per_subgraph={max_siblings_per_subgraph} >= 12")
+            split_axis_suggestion = "type"
+        elif est_max_rank_width == 7 or (7 <= max_out_degree <= 12):
+            band = "warn"
+            action = "caveat"
+            if est_max_rank_width == 7:
+                triggers.append(f"est_max_rank_width={est_max_rank_width} == 7 (approaching limit)")
+            if 7 <= max_out_degree <= 12:
+                triggers.append(f"max_out_degree={max_out_degree} in warn range 7-12")
+        # Soft navigability warn (does not override green/warn from above)
+        if N >= 60 and band == "green":
+            triggers.append(f"node_count={N} >= 60 (navigability soft-warn)")
+
+    # -----------------------------------------------------------------------
+    # erDiagram / classDiagram (entity + edge-density)
+    # -----------------------------------------------------------------------
+    elif dtype in ("erdiagram", "classdiagram"):
+        primary_metric = "entity_count"
+        # Entity count: use r.entities + r.parties as proxies for ER nodes
+        entity_count = len(getattr(r, "entities", None) or [])
+        if entity_count == 0:
+            entity_count = N  # fallback to graph nodes
+        ratio = E / entity_count if entity_count else 0.0
+        if entity_count >= 21 or ratio >= 4.0:
+            band = "split"
+            action = "split"
+            if entity_count >= 21:
+                triggers.append(f"entity_count={entity_count} >= 21")
+            if ratio >= 4.0:
+                triggers.append(f"edge/entity ratio={ratio:.1f} >= 4.0")
+            split_axis_suggestion = "type"
+        elif 13 <= entity_count <= 20 or 2.6 <= ratio <= 4.0:
+            band = "warn"
+            action = "caveat"
+            if 13 <= entity_count <= 20:
+                triggers.append(f"entity_count={entity_count} in warn range 13-20")
+            if 2.6 <= ratio <= 4.0:
+                triggers.append(f"edge/entity ratio={ratio:.1f} in warn range 2.6-4.0")
+
+    # -----------------------------------------------------------------------
+    # sequenceDiagram (participants)
+    # -----------------------------------------------------------------------
+    elif dtype == "sequencediagram":
+        primary_metric = "participant_count"
+        participant_count = len(getattr(r, "parties", None) or [])
+        if participant_count == 0:
+            # derive unique participants from communications
+            comms = getattr(r, "communications", None) or []
+            participants_set: set = set()
+            for comm in comms:
+                fp = getattr(comm, "from_party", None)
+                tp = getattr(comm, "to_party", None)
+                if fp:
+                    participants_set.add(fp)
+                if tp:
+                    participants_set.add(tp)
+            participant_count = len(participants_set)
+
+        message_count = len(getattr(r, "communications", None) or [])
+
+        if participant_count >= 13:
+            band = "split"
+            action = "split"
+            triggers.append(f"participant_count={participant_count} >= 13")
+            split_axis_suggestion = "party"
+        elif 9 <= participant_count <= 12:
+            band = "warn"
+            action = "caveat"
+            triggers.append(f"participant_count={participant_count} in warn range 9-12")
+        if message_count >= 50 and band == "green":
+            triggers.append(f"message_count={message_count} >= 50 (soft-warn)")
+
+    # -----------------------------------------------------------------------
+    # timeline / gantt (scroll-tolerated)
+    # -----------------------------------------------------------------------
+    elif dtype in ("timeline", "gantt"):
+        primary_metric = "event_count"
+        event_count = len(getattr(r, "events", None) or [])
+        task_count = len(getattr(r, "tasks", None) or [])
+
+        if dtype == "gantt":
+            # gantt split: rows in one section >= 20
+            # Use task_count as proxy for rows; sections approximated by subgraph_count
+            if task_count >= 20:
+                band = "split"
+                action = "split"
+                triggers.append(f"task_count={task_count} >= 20 (gantt section rows)")
+                split_axis_suggestion = "date"
+            elif event_count >= 25 or task_count >= 15:
+                band = "warn"
+                action = "caveat"
+                if event_count >= 25:
+                    triggers.append(f"event_count={event_count} >= 25")
+                if task_count >= 15:
+                    triggers.append(f"task_count={task_count} >= 15 (warn)")
+        else:
+            # timeline
+            if event_count >= 25:
+                band = "warn"
+                action = "caveat"
+                triggers.append(f"event_count={event_count} >= 25")
+
+    # -----------------------------------------------------------------------
+    # mindmap (tree breadth)
+    # -----------------------------------------------------------------------
+    elif dtype == "mindmap":
+        primary_metric = "max_siblings"
+        # max siblings = max children under one parent node
+        max_sib = max_siblings_per_subgraph
+
+        depth = longest_path  # longest path from root approximates depth
+
+        if max_sib >= 16:
+            band = "split"
+            action = "split"
+            triggers.append(f"max_siblings={max_sib} >= 16")
+            split_axis_suggestion = "type"
+        elif 9 <= max_sib <= 15:
+            band = "warn"
+            action = "caveat"
+            triggers.append(f"max_siblings={max_sib} in warn range 9-15")
+        if depth > 4 and band == "green":
+            triggers.append(f"depth={depth} > 4 (soft-warn)")
+
+    # -----------------------------------------------------------------------
+    # unknown / other: green default, soft N>=60 warn
+    # -----------------------------------------------------------------------
+    else:
+        primary_metric = "node_count"
+        if N >= 60:
+            triggers.append(f"node_count={N} >= 60 (navigability soft-warn)")
+
+    return {
+        "type": recommended_type,
+        "primary_metric": primary_metric,
+        "node_count": N,
+        "edge_count": E,
+        "max_out_degree": max_out_degree,
+        "longest_path": longest_path,
+        "est_max_rank_width": est_max_rank_width,
+        "subgraph_count": subgraph_count,
+        "max_siblings_per_subgraph": max_siblings_per_subgraph,
+        "band": band,
+        "action": action,
+        "split_axis_suggestion": split_axis_suggestion,
+        "triggers": triggers,
+    }
+
+
+def _geometry(r, recommended_type: str) -> dict:
+    """Compute geometry metrics and classify into green|warn|split band.
+
+    Thin wrapper that builds topology once via _graph_metrics and classifies via
+    _classify_geometry.  Kept for call-site compatibility; prefer calling
+    _graph_metrics + _classify_geometry directly when reclassification is needed.
+
+    Primary metric is BREADTH (max nodes per rank / max out-degree) for graph
+    types, not raw node count.  Raw node count is a soft navigability signal only.
+    """
+    return _classify_geometry(_graph_metrics(r), recommended_type)
+
+
+def _grouping_decision(r, top, intent_exempt=False, geometry=None):
+    """Phase 1 single-layer grouping: dense-timeline path and geometry-split path.
 
     Returns (new_top, grouping_axis, rationale_override|None). grouping_suggested
     is derived from grouping_axis being non-null at the call site.
@@ -163,6 +560,11 @@ def _grouping_decision(r, top, intent_exempt=False):
     keyword resolved to timeline), the dense-timeline override is suppressed so the
     stated intent is honoured.  The no-intent path passes intent_exempt=False, so its
     10-event / 50-char boundaries are unchanged (defect-2 fix).
+
+    geometry: optional pre-computed geometry dict.  When geometry band == 'split',
+    the grouping override also fires (generalising the dense-timeline override),
+    using split_axis_suggestion as the grouping_axis.  Existing dense-timeline
+    behaviour is preserved so selector tests stay green.
     """
     if top == "timeline" and not intent_exempt:
         events = r.events or []
@@ -171,6 +573,12 @@ def _grouping_decision(r, top, intent_exempt=False):
             return ("flowchart", "era",
                     f"Timeline overridden to a grouped flowchart: {n} events exceed the density "
                     f"threshold. Rendering as a vertical flowchart with era subgraphs.")
+
+    # Geometry split override: fires when geometry verdict is 'split'
+    if geometry is not None and geometry.get("band") == "split":
+        axis = geometry.get("split_axis_suggestion") or "type"
+        return (top, axis, None)
+
     return (top, None, None)
 
 
@@ -231,23 +639,106 @@ def _confidence(scores, top):
     return round(min(0.9 * margin + 0.1 * share, 1.0), 2)
 
 
+# _DENSITY_BANDS: band name -> (inclusion_low, inclusion_high) fractions.
+# Band names must stay in sync with workflows/generation.md § Step 3.4.
+_DENSITY_BANDS = {
+    "comprehensive": (0.85, 0.95),
+    "detailed":      (0.60, 0.75),
+    "overview":      (0.30, 0.45),
+}
+
+# Floor fields: only these three are scanned for risk_level == 'high'
+_FLOOR_FIELDS = ("risk_items", "obligations", "deadlines")
+
+# Per-band keywords for case-insensitive substring classification of intent strings.
+_DENSITY_BAND_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "comprehensive": ("comprehensive", "exhaustive", "everything", "all"),
+    "detailed":      ("detailed", "detail", "thorough"),
+    "overview":      ("overview", "at a glance", "at-a-glance", "high level", "high-level", "summary", "simple"),
+}
+
+
+def _classify_band(intent: str) -> str:
+    """Classify an intent string into a density band name.
+
+    Case-insensitive substring match against three exclusive keyword groups.
+    When exactly one group matches, that band is returned.
+    When zero or multiple groups match (conflict), default is 'comprehensive'
+    (guards against under-detailing -- the stated failure mode this signal fixes).
+    """
+    il = intent.casefold()
+    matched = [b for b, kws in _DENSITY_BAND_KEYWORDS.items() if any(kw in il for kw in kws)]
+    return matched[0] if len(matched) == 1 else "comprehensive"
+
+
+def _density(r, intent: str) -> dict:
+    """Compute a density advisory signal for the diagram generation step.
+
+    Returns a dict with keys:
+      salient_count  -- total entity count across all ENTITY_FIELDS
+      band           -- 'comprehensive' | 'detailed' | 'overview'
+      inclusion_low  -- lower fraction of the band (float)
+      inclusion_high -- upper fraction of the band (float)
+      target_low     -- round(salient_count * inclusion_low), clamped by floor
+      target_high    -- round(salient_count * inclusion_high)
+      floor          -- count of high-risk entities that must not be dropped
+
+    When salient_count == 0 all targets are 0 but the band is still classified
+    so callers without entities do not break.
+    """
+    salient_count = sum(len(getattr(r, field) or []) for field in ENTITY_FIELDS)
+    band = _classify_band(intent)
+    low_frac, high_frac = _DENSITY_BANDS[band]
+
+    # Floor: count items whose risk_level == 'high' across the three floor fields
+    floor = 0
+    for field in _FLOOR_FIELDS:
+        for item in (getattr(r, field) or []):
+            if getattr(item, "risk_level", None) == "high":
+                floor += 1
+
+    # Compute floor clamped to salient_count; targets are 0 when salient_count == 0.
+    effective_floor = min(floor, salient_count)
+    target_low = max(round(salient_count * low_frac), effective_floor) if salient_count else 0
+    target_high = round(salient_count * high_frac) if salient_count else 0
+
+    return {
+        "salient_count": salient_count,
+        "band": band,
+        "inclusion_low": low_frac,
+        "inclusion_high": high_frac,
+        "target_low": target_low,
+        "target_high": target_high,
+        "floor": floor,
+    }
+
+
 def recommend(r, intent):
     scores, intent_types = _score_with_intent_types(r, intent)
+    # Build topology once; reclassify cheaply if grouping override changes the type.
+    topo = _graph_metrics(r)
     if not scores:
+        geo = _classify_geometry(topo, "flowchart")
         return {"recommended_type": "flowchart", "rationale": "No signals; flowchart is the versatile default.",
                 "alternatives": ["mindmap", "timeline"], "confidence": 0.3,
-                "grouping_suggested": False, "grouping_axis": None}
+                "grouping_suggested": False, "grouping_axis": None,
+                "density": _density(r, intent), "geometry": geo}
     ranked = sorted(scores, key=lambda t: scores[t], reverse=True)
     top = ranked[0]
     conf = _confidence(scores, top)
     drivers = [f.replace("_", " ") for f, types, _ in RULES if top in types and getattr(r, f)]
     base_rationale = f"{top} selected based on: {', '.join(drivers) or 'intent match'}."
+    geo = _classify_geometry(topo, top)
     new_top, grouping_axis, rationale_override = _grouping_decision(
-        r, top, intent_exempt=top in intent_types)
+        r, top, intent_exempt=top in intent_types, geometry=geo)
+    # Reclassify against new_top using the already-built topology (no graph rebuild).
+    if geo["type"] != new_top:
+        geo = _classify_geometry(topo, new_top)
     return {"recommended_type": new_top,
             "rationale": rationale_override or base_rationale,
             "alternatives": ranked[1:3], "confidence": conf,
-            "grouping_suggested": grouping_axis is not None, "grouping_axis": grouping_axis}
+            "grouping_suggested": grouping_axis is not None, "grouping_axis": grouping_axis,
+            "density": _density(r, intent), "geometry": geo}
 
 def main():
     p = argparse.ArgumentParser(); p.add_argument("--extraction-json", required=True)

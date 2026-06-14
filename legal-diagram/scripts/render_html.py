@@ -1,7 +1,7 @@
 import argparse, json, os, sys
 from pathlib import Path
 
-MERMAID_VERSION = "10.9.1"
+MERMAID_VERSION = "11.15.0"
 
 # ── UI chrome strings (W3.5 scaffolding; W5 owns the full UX pass) ────────────
 
@@ -272,6 +272,9 @@ def _template_path() -> Path:
 def _vendored_mermaid_path() -> Path:
     return Path(__file__).parent.parent / "assets" / "vendor" / "mermaid.min.js"
 
+def cdn_url(version: str = MERMAID_VERSION) -> str:
+    return f"https://cdn.jsdelivr.net/npm/mermaid@{version}/dist/mermaid.min.js"
+
 def _mermaid_loader(allow_cdn: bool) -> dict:
     vendored = _vendored_mermaid_path()
     if vendored.exists():
@@ -284,7 +287,7 @@ def _mermaid_loader(allow_cdn: bool) -> dict:
         return {
             "mode": "cdn",
             "script_body": "",
-            "script_url": f"https://cdn.jsdelivr.net/npm/mermaid@{MERMAID_VERSION}/dist/mermaid.min.js",
+            "script_url": cdn_url(),
         }
     return {"mode": "source-only", "script_body": "", "script_url": ""}
 
@@ -304,6 +307,14 @@ def _string_list(value) -> list[str]:
         return [str(item) for item in value]
     return [str(value)]
 
+def _as_file_uri(p: Path) -> str:
+    """file:// URI for p; resolve relative paths first (Py3.14 as_uri() rejects them)."""
+    try:
+        return p.as_uri()
+    except ValueError:
+        return p.resolve().as_uri()
+
+
 def _source_link(source_path: str | None, page: int | None,
                  relative_links: bool, output_path: str) -> str | None:
     if not source_path:
@@ -314,9 +325,9 @@ def _source_link(source_path: str | None, page: int | None,
             rel = p.relative_to(Path(output_path).parent)
             uri = str(rel).replace("\\", "/")
         except ValueError:
-            uri = p.as_uri()
+            uri = _as_file_uri(p)
     else:
-        uri = p.as_uri()
+        uri = _as_file_uri(p)
     fragment = ""
     if p.suffix.lower() == ".pdf" and page:
         fragment = f"#page={page}"
@@ -328,10 +339,17 @@ def render(mermaid_block: str, figure_desc: dict, output_path: str,
            digest_table: list[dict] | None = None,
            source_path: str | None = None,
            relative_links: bool = False,
-           ui_lang: str = "en") -> dict:
+           ui_lang: str = "en",
+           fetch_engine: bool = False) -> dict:
     from jinja2 import Environment, BaseLoader
     src = _template_path().read_text(encoding="utf-8")
     env = Environment(loader=BaseLoader(), autoescape=True)
+    if fetch_engine:
+        try:
+            import fetch_mermaid as _fm
+            _fm.ensure_vendored()
+        except Exception:
+            pass  # best-effort; missing module or network failure does not break render
     loader = _mermaid_loader(allow_cdn=allow_cdn)
 
     digest_rows: list[dict] | None = None
@@ -381,6 +399,8 @@ def main():
     p.add_argument("--semantic-map", default="{}")
     p.add_argument("--allow-cdn", action="store_true",
                    help="Allow pinned Mermaid CDN fallback when assets/vendor/mermaid.min.js is absent.")
+    p.add_argument("--fetch-engine", action="store_true",
+                   help="Opt-in: download mermaid.min.js into assets/vendor/ before rendering (offline support).")
     p.add_argument("--digest-table", default="[]",
                    help="JSON array of digest row dicts to render as verification table.")
     p.add_argument("--source-path", default="",
@@ -406,7 +426,8 @@ def main():
                                 digest_table=digest_table or None,
                                 source_path=args.source_path or None,
                                 relative_links=args.relative_links,
-                                ui_lang=args.ui_lang)))
+                                ui_lang=args.ui_lang,
+                                fetch_engine=args.fetch_engine)))
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)})); sys.exit(1)
 

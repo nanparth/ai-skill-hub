@@ -45,7 +45,7 @@ def test_corp_name_re_matches_typical_names() -> None:
         "Technologies Malouin Ltée",
         "Acme LLC",
         "Northgate Acquisitions Corp.",
-        "Pinecrest Digital Services Inc.",
+        "Example Digital Services Inc.",
     ):
         assert CORP_NAME_RE.search(name), f"CORP_NAME_RE must match: {name!r}"
 

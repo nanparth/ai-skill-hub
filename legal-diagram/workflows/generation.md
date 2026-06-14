@@ -6,7 +6,7 @@ Diagram-generation core shared by `direct.md` and `guided.md`. Lanes differ only
 
 ## Step 1 — Select type
 
-Fixed Mermaid type from caller → if type is `mindmap`, apply precision guard per `shared/diagram-type-map.md` § Mindmap scope rule before honouring it. Otherwise proceed directly. Run `python scripts/diagram_selector.py --extraction-json <enriched JSON>` with intent. Keep `recommended_type`, `rationale`, `alternatives`, `confidence`.
+Fixed Mermaid type from caller → if type is `mindmap`, apply precision guard per `shared/diagram-type-map.md` § Mindmap scope rule before honouring it. Otherwise proceed directly. Run `python scripts/diagram_selector.py --extraction-json <enriched JSON>` with intent. Keep `recommended_type`, `rationale`, `alternatives`, `confidence`, `density` (the inclusion target consumed at Step 3.4), and `geometry` (the layout-legibility verdict also consumed at Step 3.4).
 
 Confidence gate, **direct mode only** (hard cap 1): < 0.50 → present top 2 and ask once; ≥ 0.50 → proceed. Guided mode never blocks here; already showed digest and offers alternatives at delivery.
 
@@ -16,14 +16,40 @@ Load `shared/parser-guards.md`; apply guards for type. For `erDiagram`/`flowchar
 
 ## Step 3 — Generate
 
-Emit fenced Mermaid block natively. Truncate labels over ~40 chars. Self-check: every referenced node declared, no unclosed brackets or quotes.
+Emit fenced Mermaid block natively. Cap node-label WIDTH at ~40 chars (a width limit, not a content limit): split long content into more nodes, never drop or merge entities to fit. Self-check: every referenced node declared; no unclosed brackets or quotes; every node and edge label holding a metacharacter (`( ) [ ] { } | : ; # & < > " ,`) double-quoted per `shared/parser-guards.md` § Node and edge labels; reserved-word IDs (`end`, `state`, etc.) normalised; no trailing `%%` comments.
 
 **Grouping and nesting (when `grouping_suggested: true`, or `extraction_result.hierarchy` is populated).** Build containment, `flowchart TB`:
 - `hierarchy` populated → nest by node depth: depth 0 = outermost subgraph, depth 1 nested inside its `parent`, depth 2 inside that. Hard cap depth 2; deeper tiers collapse to one summary node (detail → figure description).
 - No `hierarchy` → one containment layer keyed by `grouping_axis`. `axis: "era"` → group events by period; chain chronologically within each.
-- Each subgraph: unique alphanumeric ID (reuse the `hierarchy` node `id`), human-readable label, `direction TB`. Too many siblings in one subgraph → split by a sub-axis or summarise; never shrink.
+- Each subgraph: unique alphanumeric ID (reuse the `hierarchy` node `id`), human-readable label, `direction TB`. Too many siblings in one subgraph → split by a sub-axis first; collapse to a summary node only as a last resort. "Never shrink" governs font/spacing/canvas, not node count.
 
-**Readability over fit.** Never shrink, compress, or over-truncate to fit a canvas. Size to content; HTML export pans and zooms, so large-but-legible beats small-but-cramped. ~40-char node-label cap still applies; full verbatim text lives in figure description, never in a shrunken node.
+**Readability over fit.** Never shrink font, spacing, or canvas to fit, and never over-truncate; these govern presentation, not node count. Size to content; HTML export pans and zooms, so large-but-legible beats small-but-cramped. The ~40-char cap limits label WIDTH only: split content into more nodes rather than dropping or merging it; full verbatim text also lives in the figure description, never as a substitute for a node.
+
+## Step 3.4 — Node density (carry detail in the diagram)
+
+Detail belongs in the diagram, not only the figure description. Set node count by the caller's `intent`, measured against **salient entities** (the populated `ExtractionResult` list fields: parties, events, obligations, deadlines, decision_points, payments, risk_items, conditions, documents):
+
+| Intent | Surface as nodes |
+|---|---|
+| comprehensive / exhaustive / "everything" | 85-95% of salient entities |
+| detailed / thorough | 60-75% |
+| overview / "at a glance" / high-level | 30-45% |
+
+Default to **comprehensive** when intent is ambiguous, or when the user asks for both "detailed" and "at a glance" (pan/zoom makes a large diagram glanceable). Worked example: 100 obligations + comprehensive intent → ~85-95 nodes.
+
+**Split before collapse.** When a group has too many siblings, split by a sub-axis (date, party, type). Collapse into a summary node only as a last resort (depth cap hit or genuinely unreadable); then spill every omitted entity verbatim, with its source ref, into the figure description. Never drop an entity silently.
+
+If `diagram_selector` emitted a `density` block, treat its inclusion band as the target: meet it, or state why you deviated.
+
+**Geometry gate (shape, not coverage).** Density sets how many entities become nodes; geometry judges whether those nodes lay out legibly. Breadth, the nodes in the widest rank, drives the squeeze, not the total count: a deep-narrow diagram is fine, a shallow-wide one is unreadable. If `diagram_selector` emitted a `geometry` block, act on its `band`:
+
+- `green` → ship as one diagram.
+- `warn` → ship one, fold the limitation (wide rank, deep fan-out) into the figure description; rebalance `direction` or trim cross-edges if easy.
+- `split` → split into multiple focused diagrams BEFORE export, along `geometry.split_axis_suggestion` (date, party, type). Keep each child within the green band (each rank ≤ ~6-7 nodes); a child still over band splits again. Each child exports as its own file per `workflows/html-export.md` § Multiple diagrams. This is the escalation rung between subgraph sub-axis split and collapse-to-summary; it redistributes the same entities across more diagrams and never drops one.
+
+Zoom is not a substitute: pan/zoom rescues a deep-narrow diagram, but a wide rank drops the fit-to-frame font below legibility, so a breadth-driven `split` verdict needs an actual split.
+
+**Preview before export (best-effort).** Before offering the HTML report, confirm the fenced Mermaid block rendered without a "Syntax error" in your preview surface (the web-app artifact, or a local Mermaid preview). On the CLI the preview and export engines are the same pinned Mermaid 11; on the web app the preview engine is platform-controlled and may differ from the export engine, so a clean preview is a strong signal, not a guarantee. No preview available → skip this and rely on the export-time render check.
 
 ## Step 3.5 — Build semantic map
 
@@ -85,9 +111,9 @@ Use plain-language diagram names from `shared/diagram-type-map.md` § Plain-lang
 
 ## Step 5 — Output and GATE B (HTML report) ⛔ BLOCKING
 
-No note written to disk. The fenced Mermaid block (Step 3-4) renders in a Mermaid-capable chat or Markdown viewer, and as syntax-highlighted code in a terminal.
+No note file written. The fenced Mermaid block (Step 3-4) renders as an artifact in the Claude web app and as syntax-highlighted code in the CLI.
 
-Then present **GATE B** as a structured choice when the host supports one, otherwise a numbered list, not a typed Y/n. Lead plainly: "Want the full report as a file you can open, print, and share? It pairs the diagram with a table of the exact wording from your document for each item found." Options:
+GATE B = mandatory hard stop. Always fires unless user typed a literal `--html` flag, which pre-answers it as **HTML report**. Never infer the answer from wording; do not skip it. Present **GATE B** as structured choice (the question tool), or numbered plain-text list if host has no choice tool, not a typed Y/n, then STOP, wait for reply. Lead plainly: "Want the full report as a file you can open, print, and share? It pairs the diagram with a table of the exact wording from your document for each item found." Options:
 
 - **HTML report** (recommended, list first)
 - **No, just the diagram**

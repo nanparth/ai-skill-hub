@@ -20,13 +20,17 @@ I am releasing them because they are useful to me and I personally deem them to 
 
 ## What's in here
 
-| Skill                                       | What it does                                                                                                                                                |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`legal-diagram`](./legal-diagram/)         | Generates Mermaid diagrams for legal documents, matters, timelines, corporate structures, compliance obligations, funds flows, and related legal workflows. |
-| [`biz-interview`](./biz-interview/)         | Creates and analyzes customer discovery interview scripts, transcript notes, coding matrices, hypothesis verdicts, and qualitative reports.                 |
-| [`tech-blueprinting`](./tech-blueprinting/) | An interactive session for more rigorous drafting of technical specs, PRDs, RFCs, implementation plans, READMEs, and reader testing.                        |
-| [`tech-implement`](./tech-implement/)       | Runs a TDD-oriented implementation or bug-fix pipeline with worktree safety, reviews, and verification gates.                                               |
-| [`tech-refactor`](./tech-refactor/)         | Audits structural code problems and produces execution-ready refactor roadmaps with migration and test plans.                                               |
+| Skill                                       | What it does                                                                                                                                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`biz-interview`](./biz-interview/)         | Creates and analyzes customer discovery interview scripts, transcript notes, coding matrices, hypothesis verdicts, and qualitative reports.                                               |
+| [`intel-org`](./intel-org/)                 | Researches organizations into persistent, structured profile notes with web research, registry lookups, source tracking, and gap analysis.                                                |
+| [`intel-person`](./intel-person/)           | Researches individuals into persistent, structured profile notes from seed URLs, existing notes, pasted bios, web research, source tracking, and gap analysis.                            |
+| [`legal-diagram`](./legal-diagram/)         | Generates Mermaid diagrams for legal documents, matters, timelines, party maps, obligations, corporate structures, funds flows, and compliance workflows; French extraction is supported. |
+| [`life-jobapps`](./life-jobapps/)           | Tailors job application materials from user-provided source material, including cover letters, CVs, resumes, and interview prep.                                                          |
+| [`note`](./note/)                           | Creates, saves, rewrites, reformats, merges, and processes Markdown notes, including source material that needs to become structured `.md` output.                                        |
+| [`tech-blueprinting`](./tech-blueprinting/) | An interactive session for more rigorous drafting of technical specs, PRDs, RFCs, implementation plans, READMEs, and reader testing.                                                      |
+| [`tech-implement`](./tech-implement/)       | Runs a TDD-oriented implementation or bug-fix pipeline with worktree safety, reviews, and verification gates.                                                                             |
+| [`tech-refactor`](./tech-refactor/)         | Audits structural code problems and produces execution-ready refactor roadmaps with migration and test plans.                                                                             |
 
 ---
 

@@ -191,8 +191,30 @@ def test_selector_accepts_extraction_result_payload() -> None:
     assert result["recommended_type"] == "timeline"
 
 
-def test_html_renderer_escapes_untrusted_fields_and_requires_explicit_cdn() -> None:
-    from render_html import render
+def test_html_renderer_mermaid_version_in_cdn_url(monkeypatch, tmp_path) -> None:
+    """CDN URL must reference the pinned MERMAID_VERSION constant, not a hardcoded string."""
+    import render_html
+    # Stub vendor path to a guaranteed-nonexistent file so loader yields cdn (not vendored),
+    # regardless of whether assets/vendor/mermaid.min.js exists in the real tree.
+    monkeypatch.setattr(render_html, "_vendored_mermaid_path", lambda: tmp_path / "no-vendor.js")
+
+    from render_html import render, MERMAID_VERSION
+
+    cdn_out = tmp_path / "version-check.html"
+    render("flowchart TD\nA-->B", {"title": "VersionCheck"}, str(cdn_out), allow_cdn=True)
+    cdn_html = cdn_out.read_text(encoding="utf-8")
+    assert f"mermaid@{MERMAID_VERSION}" in cdn_html, (
+        f"CDN URL must contain mermaid@{MERMAID_VERSION}; got:\n{cdn_html[:500]}"
+    )
+
+
+def test_html_renderer_escapes_untrusted_fields_and_requires_explicit_cdn(monkeypatch, tmp_path) -> None:
+    import render_html
+    # Stub vendor path to a guaranteed-nonexistent file so loader yields source-only (no flag)
+    # or cdn (allow_cdn=True), regardless of whether assets/vendor/mermaid.min.js exists.
+    monkeypatch.setattr(render_html, "_vendored_mermaid_path", lambda: tmp_path / "no-vendor.js")
+
+    from render_html import render, MERMAID_VERSION
 
     desc = {
         "title": 'Matter </title><script>alert(1)</script>',
@@ -206,21 +228,20 @@ def test_html_renderer_escapes_untrusted_fields_and_requires_explicit_cdn() -> N
     semantic_map = json.dumps({"nodes": {"A": "sem-party"}, "meta": {"label": "</script><script>alert(1)</script>"}})
     mermaid = 'flowchart TD\nA["</pre><script>alert(1)</script>"]'
 
-    with tempfile.TemporaryDirectory() as tmp:
-        out = Path(tmp) / "figure.html"
-        render(mermaid, desc, str(out), semantic_map=semantic_map)
-        html = out.read_text(encoding="utf-8")
-        assert "<script>alert(1)</script>" not in html
-        assert "</pre><script" not in html
-        assert "<img src=x onerror=alert(1)>" not in html
-        assert 'id="sourceOnlyPanel"' in html  # source-only fallback panel rendered
-        assert "cdn.jsdelivr.net" not in html
-        assert "securityLevel: 'strict'" in html
+    out = tmp_path / "figure.html"
+    render(mermaid, desc, str(out), semantic_map=semantic_map)
+    html = out.read_text(encoding="utf-8")
+    assert "<script>alert(1)</script>" not in html
+    assert "</pre><script" not in html
+    assert "<img src=x onerror=alert(1)>" not in html
+    assert 'id="sourceOnlyPanel"' in html  # source-only fallback panel rendered
+    assert "cdn.jsdelivr.net" not in html
+    assert "securityLevel: 'strict'" in html
 
-        cdn_out = Path(tmp) / "figure-cdn.html"
-        render("flowchart TD\nA-->B", {"title": "Safe"}, str(cdn_out), allow_cdn=True)
-        cdn_html = cdn_out.read_text(encoding="utf-8")
-        assert "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js" in cdn_html
+    cdn_out = tmp_path / "figure-cdn.html"
+    render("flowchart TD\nA-->B", {"title": "Safe"}, str(cdn_out), allow_cdn=True)
+    cdn_html = cdn_out.read_text(encoding="utf-8")
+    assert f"https://cdn.jsdelivr.net/npm/mermaid@{MERMAID_VERSION}/dist/mermaid.min.js" in cdn_html
 
 
 def test_html_renderer_rejects_invalid_semantic_map() -> None:
@@ -1827,7 +1848,7 @@ def test_w6_defect_e_we_maintain_obligation_promotes() -> None:
     # "We maintain an incident response plan requiring notification to the OPC within 72 hours"
     # must promote as an obligation for the organization.
     data = _run_extract(
-        "**Organization:** Pinecrest Digital Services Inc.\n\n"
+        "**Organization:** Example Digital Services Inc.\n\n"
         "We maintain an incident response plan requiring notification to the Office of the Privacy\n"
         "Commissioner of Canada within 72 hours of discovery of a reportable breach.\n"
     )
@@ -2284,16 +2305,16 @@ def test_w6r3_description_tail_not_trimmed_when_date_present() -> None:
 def test_w6r3_we_subject_resolved_to_operator_in_description() -> None:
     """'We maintain...' with a single unambiguous operator must resolve 'We' in description."""
     data = _run_extract(
-        "Pinecrest Digital Services Inc. (\"Company\") is the operator of this platform.\n"
+        "Example Digital Services Inc. (\"Company\") is the operator of this platform.\n"
         "We maintain an incident response plan requiring notification to the Office of the "
         "Privacy Commissioner of Canada within 72 hours of discovery of a reportable breach."
     )
     obligations = data["extraction_result"]["obligations"]
-    # At least one obligation should reference "Pinecrest" (not "We") in description
+    # At least one obligation should reference "Example Digital" (not "We") in description
     descs = [o.get("description", "") for o in obligations]
-    resolved = [d for d in descs if "Pinecrest" in d and "incident response" in d.lower()]
+    resolved = [d for d in descs if "Example Digital" in d and "incident response" in d.lower()]
     assert resolved, (
-        f"'We maintain...' obligation must resolve 'We' to 'Pinecrest Digital Services Inc.' "
+        f"'We maintain...' obligation must resolve 'We' to 'Example Digital Services Inc.' "
         f"in description; got: {descs}"
     )
 

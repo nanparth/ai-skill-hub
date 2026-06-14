@@ -4,7 +4,7 @@ Interactive default lane. Digest or elicit, show findings, hand to shared genera
 
 ## Step 0 — Receive router handoff
 
-The routing gate already detected input, resolved `diagram_scope` (multi-file structured choice), and ran Pass 1. This lane is entered after GATE A. You receive `manifest_cache`, `input_source`, and `diagram_scope`.
+The routing gate already detected input, resolved `diagram_scope` (multi-file pop-up), and ran Pass 1. This lane is entered after GATE A. You receive `manifest_cache`, `input_source`, and `diagram_scope`.
 
 - `manifest_cache` present (file or pasted text) → docs path (Step 1A).
 - No `manifest_cache` (matter description only, no docs) → intake path (Step 1B).
